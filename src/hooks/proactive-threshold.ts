@@ -66,11 +66,10 @@ const checkAndTrigger = (ctx: ProactiveContext, source: string, state: Proactive
   // Set cooldown IMMEDIATELY (before ctx.compact() runs) to prevent
   // pi-core's own _checkCompaction from also triggering compaction
   // on the same turn.
-  setCooldown();
+  state.initiate();
 
-  // Mark that this compaction was triggered by us, so session_before_compact
-  // doesn't cancel it if tokensBefore differs from getContextUsage().
-  proactiveTriggerActive = true;
+  // The state belongs to this Pi instance; only its before_compact hook
+  // sees this self-initiated trigger.
 
   ctx.compact?.();
 };
