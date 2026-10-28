@@ -62,13 +62,13 @@ function* jsonlLines(file: string, maxLineBytes = MAX_LINE_BYTES): Generator<{ l
   }
 }
 
-function stubOversized(line: string, bytes: number): any | undefined {
+function stubOversized(line: string, bytes: number, offset: number): any | undefined {
   const type = /"type"\s*:\s*"([^"\\]+)"/u.exec(line)?.[1];
   if (!type) return undefined;
   const beforeMessage = line.split(/"message"\s*:/u, 1)[0];
   const id = /"id"\s*:\s*"([^"\\]+)"/u.exec(beforeMessage)?.[1];
   const parentId = /"parentId"\s*:\s*"([^"\\]+)"/u.exec(beforeMessage)?.[1];
-  const entry: any = { type, ...(id ? { id } : {}), ...(parentId ? { parentId } : {}), vccOmittedBytes: bytes };
+  const entry: any = { type, ...(id ? { id } : {}), ...(parentId ? { parentId } : {}), vccOmittedBytes: bytes, vccOmittedOffset: offset };
   if (type === "message") {
     const role = /"message"\s*:\s*\{\s*"role"\s*:\s*"([^"\\]+)"/u.exec(line)?.[1];
     if (!role) return undefined;
@@ -87,10 +87,10 @@ export function readSessionEntries(file: string): any[] {
     return prior.entries;
   }
   const entries: any[] = [];
-  for (const { line, bytes, oversized } of jsonlLines(file)) {
+  for (const { line, bytes, offset, oversized } of jsonlLines(file)) {
     if (!line.trim()) continue;
     if (oversized) {
-      const stub = stubOversized(line, bytes);
+      const stub = stubOversized(line, bytes, offset);
       if (stub) entries.push(stub);
       continue;
     }
@@ -111,36 +111,38 @@ export function readSessionEntries(file: string): any[] {
 /** Explicit evidence lookup is allowed to decode one entire oversized line.
  * It is not called from ordinary search or compaction enumeration.
  */
+/** Hydrate one oversized stub at its known byte offset. Only requested
+ * evidence is decoded; unrelated giant records remain lightweight.
+ */
+export function hydrateSessionEntry(file: string, entry: any): any | undefined {
+  if (typeof entry?.vccOmittedOffset !== "number" ||
+      !Number.isSafeInteger(entry.vccOmittedOffset) || entry.vccOmittedOffset < 0 ||
+      !Number.isSafeInteger(entry.vccOmittedBytes) || entry.vccOmittedBytes <= 0 ||
+      typeof entry.id !== "string") return entry;
+  const fd = openSync(file, "r");
+  try {
+    const buffer = Buffer.alloc(entry.vccOmittedBytes);
+    let read = 0;
+    while (read < buffer.length) {
+      const n = readSync(fd, buffer, read, buffer.length - read, entry.vccOmittedOffset + read);
+      if (!n) return undefined;
+      read += n;
+    }
+    const original: any = JSON.parse(buffer.toString("utf8"));
+    // Stale snapshot or rewritten file: never silently return wrong evidence.
+    return original?.id === entry.id && original?.type === entry.type ? original : undefined;
+  } catch { return undefined; }
+  finally { closeSync(fd); }
+}
+
+/** Resolve a stable entry ID from one already-enumerated snapshot, then
+ * hydrate only that entry. No repeated full-file rescans per message.
+ */
 export function readSessionEntryById(file: string, sourceId: string): any | undefined {
   if (!sourceId) return undefined;
-  for (const { line, oversized, offset, bytes } of jsonlLines(file)) {
-    if (!oversized) {
-      try {
-        const entry = JSON.parse(line);
-        if (entry?.id === sourceId) return entry;
-      } catch { /* ignore malformed line */ }
-      continue;
-    }
-    // The stub retains stable IDs, but not giant inline images. Seek only the
-    // explicitly requested line; unrelated giant lines never enter memory.
-    const stub = stubOversized(line, bytes);
-    if (stub?.id !== sourceId) continue;
-    const fd = openSync(file, "r");
-    try {
-      const buffer = Buffer.alloc(bytes);
-      let read = 0;
-      while (read < bytes) {
-        const n = readSync(fd, buffer, read, bytes - read, offset + read);
-        if (n === 0) break;
-        read += n;
-      }
-      if (read !== bytes) return undefined;
-      try { return JSON.parse(buffer.toString("utf8")); } catch { return undefined; }
-    } finally {
-      closeSync(fd);
-    }
-  }
-  return undefined;
+  const entry = readSessionEntries(file).find(item => item.id === sourceId);
+  if (!entry) return undefined;
+  return entry.vccOmittedBytes ? hydrateSessionEntry(file, entry) : entry;
 }
 
 export function invalidateSessionEntries(file?: string): void {
