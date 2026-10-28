@@ -18,11 +18,12 @@ const cache = new Map<string, Snapshot>();
  * line is buffered; a large paste or inline image cannot allocate the whole
  * session as a UTF-16 string.
  */
-function* jsonlLines(file: string, maxLineBytes = MAX_LINE_BYTES): Generator<{ line: string; bytes: number; oversized: boolean }> {
+function* jsonlLines(file: string, maxLineBytes = MAX_LINE_BYTES): Generator<{ line: string; bytes: number; oversized: boolean; offset: number }> {
   const fd = openSync(file, "r");
   const chunk = Buffer.allocUnsafe(CHUNK_BYTES);
   let pieces: Buffer[] = [];
   let currentBytes = 0;
+  let chunkOffset = 0, lineOffset = 0;
   let head = Buffer.alloc(0), tail = Buffer.alloc(0);
   const append = (part: Buffer) => {
     if (!part.length) return;
@@ -36,7 +37,7 @@ function* jsonlLines(file: string, maxLineBytes = MAX_LINE_BYTES): Generator<{ l
     const oversized = currentBytes > maxLineBytes;
     const line = oversized ? head.toString("utf8") + "\n" + tail.toString("utf8")
       : Buffer.concat(pieces).toString("utf8");
-    const result = { line, bytes: currentBytes, oversized };
+    const result = { line, bytes: currentBytes, oversized, offset: lineOffset };
     pieces = []; currentBytes = 0; head = Buffer.alloc(0); tail = Buffer.alloc(0);
     return result;
   };
@@ -49,9 +50,11 @@ function* jsonlLines(file: string, maxLineBytes = MAX_LINE_BYTES): Generator<{ l
         if (chunk[i] !== 10) continue;
         append(chunk.subarray(start, i));
         yield emit();
+        lineOffset = chunkOffset + i + 1;
         start = i + 1;
       }
       append(chunk.subarray(start, n));
+      chunkOffset += n;
     }
     if (currentBytes) yield emit();
   } finally {
@@ -71,7 +74,7 @@ function stubOversized(line: string, bytes: number): any | undefined {
     if (!role) return undefined;
     const toolCallId = /"toolCallId"\s*:\s*"([^"\\]+)"/u.exec(line)?.[1];
     const toolName = /"toolName"\s*:\s*"([^"\\]+)"/u.exec(line)?.[1];
-    entry.message = { role, content: [], ...(toolCallId ? { toolCallId } : {}), ...(toolName ? { toolName } : {}) };
+    entry.message = { role, content: [{ type: "text", text: "[oversized session message omitted from search; retrieve by evidenceId]" }], ...(toolCallId ? { toolCallId } : {}), ...(toolName ? { toolName } : {}) };
   }
   return entry;
 }
@@ -110,12 +113,32 @@ export function readSessionEntries(file: string): any[] {
  */
 export function readSessionEntryById(file: string, sourceId: string): any | undefined {
   if (!sourceId) return undefined;
-  for (const { line, oversized } of jsonlLines(file, Number.POSITIVE_INFINITY)) {
-    if (oversized) continue;
+  for (const { line, oversized, offset, bytes } of jsonlLines(file)) {
+    if (!oversized) {
+      try {
+        const entry = JSON.parse(line);
+        if (entry?.id === sourceId) return entry;
+      } catch { /* ignore malformed line */ }
+      continue;
+    }
+    // The stub retains stable IDs, but not giant inline images. Seek only the
+    // explicitly requested line; unrelated giant lines never enter memory.
+    const stub = stubOversized(line, bytes);
+    if (stub?.id !== sourceId) continue;
+    const fd = openSync(file, "r");
     try {
-      const entry = JSON.parse(line);
-      if (entry?.id === sourceId) return entry;
-    } catch { /* ignore malformed line */ }
+      const buffer = Buffer.alloc(bytes);
+      let read = 0;
+      while (read < bytes) {
+        const n = readSync(fd, buffer, read, bytes - read, offset + read);
+        if (n === 0) break;
+        read += n;
+      }
+      if (read !== bytes) return undefined;
+      try { return JSON.parse(buffer.toString("utf8")); } catch { return undefined; }
+    } finally {
+      closeSync(fd);
+    }
   }
   return undefined;
 }
