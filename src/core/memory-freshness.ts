@@ -15,7 +15,7 @@ const FILE_PATTERN = /(?:[a-zA-Z0-9_.-]+\/){0,5}[a-zA-Z0-9_.-]+\.(?:ts|tsx|js|js
 
 export function extractMemoryFiles(text: string): string[] {
   return [...new Set(text.match(FILE_PATTERN) ?? [])].filter(path =>
-    path.length <= 60 && !path.split("/").includes("..") && !path.startsWith("/"),
+    path.length <= 36 && !path.split("/").includes("..") && !path.startsWith("/"),
   ).slice(0, 2);
 }
 
