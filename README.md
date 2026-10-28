@@ -61,6 +61,10 @@ pi install git:github.com/kunkun9527/pi-vcc
 
 要展开已找到的消息，使用 `expand`；按指定压缩区段检索，使用 `scope: "compaction:latest"` 或 `scope: "compaction:N"`。`scope: "all"` 会跨越当前活动分支，应在确实需要查看其他分支时明确指定。
 
+### 历史优先检索
+
+默认 `scope:lineage` 的关键词检索会优先搜索最近一次压缩前、已离开实时 context 的消息。若没有匹配，才回退至当前活动分支全部消息，以避免把模型已经看到的文本重复注入。没有有效压缩边界时保留原有检索行为。显式 `scope:all`、`scope:compaction:N`、`evidenceId` 和 `expand` 不受这一优先级策略影响。
+
 ### 按证据 ID 直接取回历史
 
 新生成的长期记忆可以带上来源元数据（示例 ID 仅用于说明）：
