@@ -1,4 +1,4 @@
-import { readSessionEntries } from "./session-jsonl";
+import { readSessionEntries, readSessionEntryById } from "./session-jsonl";
 import type { Message } from "@earendil-works/pi-ai";
 import { renderMessage, type RenderedEntry } from "./render-entries";
 
@@ -28,8 +28,10 @@ export const loadAllMessages = (
     const allowed = (!allowedEntryIds || allowedEntryIds.has(e.id)) &&
       (!entryFilter || entryFilter(messageIndex));
     if (allowed) {
-      rendered.push(renderMessage(e.message, messageIndex, full));
-      rawMessages.push(e.message);
+      const original = full && e.vccOmittedBytes && typeof e.id === "string"
+        ? readSessionEntryById(sessionFile, e.id)?.message ?? e.message : e.message;
+      rendered.push(renderMessage(original, messageIndex, full));
+      rawMessages.push(original);
       entryIds.push(typeof e.id === "string" ? e.id : "");
     }
     messageIndex++;
