@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
+import { randomUUID } from "node:crypto";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
-const settingsPath = (): string =>
+export const settingsPath = (): string =>
   process.env.PI_VCC_CONFIG_PATH ?? join(getAgentDir(), "pi-vcc-config.json");
 /** Backwards-compat export. Resolves at access time, not import time. */
 const SETTINGS_PATH = settingsPath();
@@ -67,6 +68,10 @@ export interface PiVccSettings {
   overrideDefaultCompaction: boolean;
   /** Write debug snapshot to /tmp/pi-vcc-debug.json on each compaction. */
   debug: boolean;
+  /** Optional hosted Jev ranking. Explicit opt-in; requires JEVMODEL_API_KEY.
+   * PI_VCC_JEV_ENABLED=0 or 1 overrides this setting when present.
+   */
+  jevEnabled?: boolean;
   /**
    * Per-model compaction thresholds. Keys are matched against
    * "provider/modelId" (e.g., "neuralwatt/zai-org/GLM-5.1-FP8") or
@@ -249,5 +254,34 @@ export function scaffoldSettings(): void {
     if (changed) writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
   } catch {
     // best-effort; never crash extension load
+  }
+}
+
+/** Atomically update the pi-vcc config while preserving unknown/legacy keys.
+ * Reject invalid JSON rather than silently replacing a hand-edited file.
+ * The TUI uses this synchronous API so rapid changes cannot overwrite
+ * each other's pending writes.
+ */
+export function updateSettingsRaw(change: (raw: Record<string, unknown>) => void): void {
+  const path = settingsPath();
+  const directory = dirname(path);
+  if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
+  let raw: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("pi-vcc config must be a JSON object");
+    }
+    raw = parsed as Record<string, unknown>;
+  } else {
+    raw = { ...DEFAULT_SETTINGS };
+  }
+  change(raw);
+  const tempPath = join(directory, `.pi-vcc-${process.pid}-${randomUUID()}.tmp`);
+  try {
+    writeFileSync(tempPath, JSON.stringify(raw, null, 2) + "\n", { mode: 0o600 });
+    renameSync(tempPath, path);
+  } finally {
+    if (existsSync(tempPath)) unlinkSync(tempPath);
   }
 }
