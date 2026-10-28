@@ -27,7 +27,16 @@ export function collectMemory(blocks: NormalizedBlock[]): MemoryFact[] {
         : ISSUE.test(text) && !/(?:已解决|已修复|修复完成|问题解决|resolved|fixed)/iu.test(text) ? "blocker"
         : CHOICE.test(text) ? "decision" : null;
       if (!kind) continue;
-      const clipped = Array.from(text).slice(0, 90).join("");
+      // Keep each record on one terminal-width line: the next compaction
+      // must be able to parse its ID and complete text unchanged.
+      let clipped = "";
+      let width = 0;
+      for (const char of text) {
+        const cells = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff01-\uff60\p{Extended_Pictographic}]/u.test(char) ? 2 : 1;
+        if (width + cells > 90) break;
+        clipped += char;
+        width += cells;
+      }
       const id = memoryId(kind, clipped);
       if (!seen.has(id)) { seen.add(id); result.push({ kind, id, text: clipped }); }
     }
