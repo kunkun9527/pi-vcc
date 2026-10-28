@@ -13,14 +13,15 @@ import { contextWindowLearner, planContextBudget } from "../core/context-budget"
 import {
   CODEX_CONTEXT_OVERFLOW_COMPACT_INSTRUCTION,
   CODEX_OUTPUT_LIMIT_COMPACT_INSTRUCTION,
-  clearCodexContextOverflowPending,
+  clearCodexContextOverflowPending as legacyClearOverflow,
   isCodexContextOverflowError,
-  isCodexContextOverflowPending,
+  isCodexContextOverflowPending as legacyIsOverflowPending,
   isCodexOutputLimitError,
 } from "../core/codex-output-limit";
 import { loadSettings, type PiVccSettings } from "../core/settings";
 import { triggerInvisibleContinue } from "../core/invisible-continue";
-import { isProactiveTriggerActive } from "./proactive-threshold";
+import { isProactiveTriggerActive as legacyIsProactiveTriggerActive } from "./proactive-threshold";
+import type { ProactiveState } from "../core/proactive-state";
 import { countPiVccCompactionsFromSession, ordinalSuffix } from "../core/compaction-count";
 import type { PiVccCompactionDetails } from "../details";
 
@@ -111,7 +112,13 @@ export function shouldTriggerResumeForCompaction(
   return !sessionIsIdle;
 }
 
-export const registerBeforeCompactHook = (pi: ExtensionAPI, getMemoryScores: () => Record<string, number> = () => ({})) => {
+export const registerBeforeCompactHook = (
+  pi: ExtensionAPI, getMemoryScores: () => Record<string, number> = () => ({}),
+  proactiveState?: ProactiveState,
+) => {
+  const isProactiveTriggerActive = () => proactiveState?.isTriggered() ?? legacyIsProactiveTriggerActive();
+  const isCodexContextOverflowPending = () => proactiveState?.isOverflowPending() ?? legacyIsOverflowPending();
+  const clearCodexContextOverflowPending = () => proactiveState ? proactiveState.clearOverflow() : legacyClearOverflow();
   pi.on("session_before_compact", (event, ctx) => {
     // pi-fabric may run before pi-vcc and mark the shared event after claiming it.
     if ((event as any)._fabricCompaction === true) return;
