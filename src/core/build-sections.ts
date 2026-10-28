@@ -39,7 +39,7 @@ interface BuildSectionsInput {
 }
 
 const BLOCKER_RE =
-  /\b(fail(ed|s|ure|ing)?|broken|cannot|can't|won't work|does not work|doesn't work|still (broken|failing|wrong)|blocked|blocker|not (fixed|resolved|working)|crash(es|ed|ing)?)\b/i;
+  /\b(fail(ed|s|ure|ing)?|broken|cannot|can't|won't work|does not work|doesn't work|still (broken|failing|wrong)|blocked|blocker|not (fixed|resolved|working)|crash(es|ed|ing)?)\b|(?:失败|报错|出错|错误|异常|崩溃|无法|不能|未解决|仍然失败|卡住|阻塞)/i;
 
 // TypeScript compiler error pattern
 const TSC_ERROR_RE = /error TS\d+:.+/;
@@ -186,10 +186,10 @@ const extractOutstandingContext = (blocks: NormalizedBlock[]): string[] => {
     if (b.kind === "assistant" || b.kind === "user") {
       for (const line of nonEmptyLines(b.text)) {
         if (!BLOCKER_RE.test(line)) continue;
-        if (line.length < 15) continue;
+        if (line.length < 15 && !/\p{Script=Han}/u.test(line)) continue;
         if (/^\s*[-*+>]\s/.test(line)) continue;
         if (/^\s*\(/.test(line)) continue;
-        if (!/^\s*["'`*_]?[A-Z`]/.test(line)) continue;
+        if (!/^\s*["'`*_]?(?:[A-Z`]|\p{Script=Han})/u.test(line)) continue;
         const clipped = b.kind === "user" ? `[user] ${clipSentence(line, 150)}` : clipSentence(line, 150);
         push(clipped);
         break;

@@ -429,6 +429,7 @@ const shortenPath = (p: string): string => {
 // Cause markers: phrases that signal "here comes the reason/problem".
 // Ordered from most specific to least specific; first match wins.
 const CAUSE_MARKERS: readonly string[] = [
+  "原因是", "问题在于", "根因是", "因为", "由于", "导致",
   "the issue is",
   "the problem is",
   "the problem was",
@@ -474,6 +475,7 @@ const CAUSE_MARKERS: readonly string[] = [
 // Resolution markers: phrases that signal "here comes the fix/action".
 // Ordered from most specific to least specific; first match wins.
 const RESOLUTION_MARKERS: readonly string[] = [
+  "解决办法是", "解决方案是", "修复方式是", "修复方法是", "处理方式是", "改为", "改用", "已经修复",
   "fix this by",
   "fix it by",
   "resolve this by",
@@ -534,7 +536,7 @@ const CAUSAL_BREADCRUMB_MAX = 40;
 
 // Characters that terminate a causal fragment.
 const SENTINEL_CHARS = new Set([...
-  ",.;!?\n"
+  ",.;!?，。；：！？\n"
 ]);
 
 /**
@@ -586,7 +588,7 @@ export const extractCausalChain = (
   // resolution marker "it by" doesn't match because "it" is too far
   // from the full text's start).
   if (!cause || !resolution) {
-    const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 3);
+    const sentences = text.split(/[.!?。！？]/).filter(s => s.trim().length > 3);
     for (const sentence of sentences) {
       if (!cause) cause = extractFragment(sentence, CAUSE_MARKERS);
       if (!resolution) resolution = extractFragment(sentence, RESOLUTION_MARKERS);

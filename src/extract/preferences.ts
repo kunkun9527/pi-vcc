@@ -9,6 +9,8 @@ const PREF_PATTERNS = [
   /\bnever (?:use|do|run|push|commit|write|ignore|add|set|put|remove|delete|include|deploy)\b/i,
   /\bplease (?:use|avoid|keep|make|don'?t|do not|format|write)\b/i,
   /\b(?:style|format|language|naming)\s*[:=]\s*\S/i,
+  /(?:以后|今后|始终|总是|一直|默认|每次|务必).{0,40}(?:使用|采用|保持|回答|输出|不要|避免|优先|只用|用)/u,
+  /(?:不要|别再|请勿|禁止|避免|必须|优先使用|只使用|只用).{1,60}/u,
 ];
 
 export const extractPreferences = (blocks: NormalizedBlock[]): string[] => {
@@ -24,7 +26,7 @@ export const extractPreferences = (blocks: NormalizedBlock[]): string[] => {
       if (!trimmed || trimmed.length < 5) continue;
       if (trimmed.length > 200) continue;
       // Reject questions.
-      if (trimmed.endsWith("?") || trimmed.includes("?...")) continue;
+      if (/[?？]$/.test(trimmed) || trimmed.includes("?...")) continue;
       if (!PREF_PATTERNS.some((p) => p.test(trimmed))) continue;
 
       const clipped = clip(trimmed, 200);
