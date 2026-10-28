@@ -44,7 +44,7 @@ export function registerConfigPanel(pi: ExtensionAPI): void {
               updateSettingsRaw(raw => applyPanelValue(raw, id, value, scope));
               const savedValue = readPanelValue(loadSettings(), id, scope);
               if (savedValue !== value) list.updateValue(id, savedValue);
-              if (id === "jevEnabled" && savedValue === "开启" && !process.env.JEVMODEL_API_KEY) {
+              if (id === "jevEnabled" && savedValue !== "关闭" && !process.env.JEVMODEL_API_KEY) {
                 ctx.ui.notify("Jev 已设为开启，但未配置 JEVMODEL_API_KEY；仍不会发送请求", "warning");
               }
             } catch (error) {

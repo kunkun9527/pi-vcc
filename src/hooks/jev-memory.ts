@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Message } from "@earendil-works/pi-ai";
 import { normalize } from "../core/normalize";
 import { collectMemory } from "../core/long-memory";
-import { jevEnabled, scoreMemoryDecisions } from "../core/jev-scorer";
+import { jevMode, scoreMemoryDecisions } from "../core/jev-scorer";
 
 /** Each registered extension instance gets an isolated Jev score cache. */
 export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, number> {
@@ -18,7 +18,8 @@ export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, 
     generation++;
   });
   pi.on("agent_end", async (_event, ctx) => {
-    if (!jevEnabled()) return;
+    const mode = jevMode();
+    if (mode === "off") return;
     try {
       const current = ctx.sessionManager.getSessionFile() ?? undefined;
       if (current !== sessionFile) {
@@ -40,6 +41,7 @@ export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, 
       const scores = await scoreMemoryDecisions(batch, {
         apiKey: process.env.JEVMODEL_API_KEY ?? "",
         maxCandidates: 4,
+        mode, log: true,
       });
       if (started === generation) Object.assign(cached, scores);
     } catch {

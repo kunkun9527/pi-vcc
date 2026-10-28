@@ -5,6 +5,28 @@ critical user constraints and unresolved blockers in the `[Long-term Memory]`
 section of each summary (8 of each category, plus 8 decisions). The original
 Pi JSONL session file remains the source of truth; no messages are deleted.
 
+## Three Jev modes (including shadow)
+
+Choose **off** (no request, default), **shadow** (send scoring requests and record
+metadata only, but always preserve deterministic memory/recall ordering), or
+**active** (use valid Jev scores and preserve deterministic fallback on failure).
+
+In Pi's TUI, open `/pi-vcc-config` and select **Jev 评分模式**.
+Or configure `"jevMode": "off" | "shadow" | "active"` in
+`pi-vcc-config.json`. A legacy `"jevEnabled": true` means active.
+
+Environment override precedence is `PI_VCC_JEV_MODE` (off/shadow/active),
+then legacy `PI_VCC_JEV_ENABLED` (0/1), then `jevMode`, then
+`jevEnabled`. **Every non-off mode still requires `JEVMODEL_API_KEY`.**
+
+Use `/pi-vcc-jev-stats` to view batch counts, fallbacks, shadow runs, suggested
+reorders and average latency. A local metadata-only ledger is stored at the
+Pi agent directory's `pi-vcc-jev-ledger.jsonl` (override with
+`PI_VCC_JEV_LEDGER_PATH`). It contains timestamps, mode, counts, success,
+reorder flags and latency only—**no query text, candidate text, memory/source ID,
+response payload or API keys**. The ledger rotates at approximately 1 MiB.
+Stats are observational and do not prove improved historical answer accuracy.
+
 ## Enable optional hosted Jev scoring
 
 ```sh
@@ -12,7 +34,7 @@ export PI_VCC_JEV_ENABLED=1
 export JEVMODEL_API_KEY="your-api-key"
 ```
 
-No API key or unset opt-in means **zero network requests**. With opt-in,
+No API key or an effective mode of `off` means **zero network requests**. With opt-in,
 pi-vcc scores up to four decision candidates at completed `agent_end` turns,
 not during compaction. The scoring API is `POST https://jevmodel.org/v1/systemone`,
 using the `jev-latest` model and **one batch request** containing independent score questions per candidate.

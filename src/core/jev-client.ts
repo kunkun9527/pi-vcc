@@ -5,6 +5,10 @@
 export interface JevScoreOptions {
   apiKey: string; endpoint?: string; timeoutMs?: number;
   maxCandidates?: number; fetchImpl?: typeof fetch;
+  /** Caller passes the effective mode; omitted mode retains legacy active behavior. */
+  mode?: "off" | "shadow" | "active";
+  /** Explicitly record metadata-only scoring events. Disabled for tests and library callers. */
+  log?: boolean;
 }
 export interface JevQuestion {
   name: "importance" | "relevance";

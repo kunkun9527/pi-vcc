@@ -5,7 +5,7 @@ import { loadAllMessages } from "../core/load-messages";
 import { searchEntries, type SearchHit } from "../core/search-entries";
 import { archivedIdsFromManager, searchArchivedFirst } from "../core/recall-visibility";
 import { rerankRecallHits } from "../core/jev-recall";
-import { jevEnabled } from "../core/jev-scorer";
+import { jevMode } from "../core/jev-scorer";
 import { formatRecallOutput } from "../core/format-recall";
 import { getActiveLineageEntryIds } from "../core/lineage";
 import { normalizeRecallScope } from "../core/recall-scope";
@@ -178,8 +178,9 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
           ? searchArchivedFirst(msgs, rawMessages, entryIds, params.query, archivedIdsFromManager(ctx.sessionManager))
           : searchEntries(msgs, rawMessages, params.query)
         : msgs.slice(-DEFAULT_RECENT);
-      const allResults = params.query?.trim() && jevEnabled()
-        ? await rerankRecallHits(lexical, params.query, { apiKey: process.env.JEVMODEL_API_KEY ?? "" })
+      const mode = jevMode();
+      const allResults = params.query?.trim() && mode !== "off"
+        ? await rerankRecallHits(lexical, params.query, { apiKey: process.env.JEVMODEL_API_KEY ?? "", mode, log: true })
         : lexical;
 
       if (params.query?.trim()) {

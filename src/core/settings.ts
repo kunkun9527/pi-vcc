@@ -72,6 +72,10 @@ export interface PiVccSettings {
    * PI_VCC_JEV_ENABLED=0 or 1 overrides this setting when present.
    */
   jevEnabled?: boolean;
+  /** off: no calls; shadow: score and log without changing order; active: use scores.
+   * Explicit PI_VCC_JEV_MODE overrides this setting and legacy boolean.
+   */
+  jevMode?: "off" | "shadow" | "active";
   /**
    * Per-model compaction thresholds. Keys are matched against
    * "provider/modelId" (e.g., "neuralwatt/zai-org/GLM-5.1-FP8") or

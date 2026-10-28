@@ -140,7 +140,21 @@ export const CONFIG_ITEMS: ConfigItem[] = [
   thresholdItem("model"),
   recentItem("global"),
   recentItem("model"),
-  toggle("jevEnabled", "Jev 可选评分", "仅在配置 JEVMODEL_API_KEY 后会发送脱敏候选数据。环境变量 PI_VCC_JEV_ENABLED 优先。"),
+  {
+    id: "jevEnabled",
+    label: "Jev 评分模式",
+    description: "关闭=无网络请求；影子=评分并记录但不改变结果；开启=应用评分。需要 JEVMODEL_API_KEY。环境变量优先。",
+    values: () => [NO, "影子", YES],
+    read: config => config.jevMode === "shadow" ? "影子"
+      : config.jevMode === "active" ? YES
+      : config.jevMode === "off" ? NO
+      : config.jevEnabled === true ? YES : NO,
+    write: (raw, value) => {
+      if (value !== NO && value !== YES && value !== "影子") throw new Error("未知 Jev 模式");
+      raw.jevMode = value === "影子" ? "shadow" : value === YES ? "active" : "off";
+      raw.jevEnabled = value !== NO; // backward-compatible legacy setting
+    },
+  },
   toggle("debug", "调试日志", "写入调试信息到 /tmp/pi-vcc-debug.json；敏感会话建议关闭。"),
 ];
 export function panelItemsFor(scope: PanelScope): ConfigItem[] {

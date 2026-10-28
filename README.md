@@ -141,6 +141,11 @@ pi-vcc 的检索默认以当前活动 lineage 为界。长期记忆合并时，�
 
 ## 可选 Jev 评分
 
+Jev 已支持 **off / shadow / active** 三种模式，可在 `/pi-vcc-config` 里设置。Shadow 会发送批量评分请求并记录匿名统计，但不影响现有摘要和检索排序。通过 `/pi-vcc-jev-stats` 查看批次成功率、回退、耗时和建议排序变化。批量评分默认最多评估 4 条记忆或 4 条检索结果，单次 HTTP 提交，任一答案无效则整批回退。
+
+日志仅记录元数据，不记录原始候选、问题文本、来源 ID 或密钥；默认写入 Pi Agent 配置目录下 `pi-vcc-jev-ledger.jsonl`，约 1 MiB 后轮换。仍需 `JEVMODEL_API_KEY` 才能请求服务。
+
+
 **默认关闭；不需要 API Key。** 如需启用远程 Jev：
 
 ```bash
