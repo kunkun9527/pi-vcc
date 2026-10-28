@@ -18,14 +18,25 @@ describe("optional Jev recall rerank", () => {
       n++;
       const body = JSON.parse(init.body);
       expect(body.state.query).toContain("数据库失败");
-      return {ok:true,json:async()=>({ answers: { relevance: {score: [1, 3, 0][n-1],confidence:0.98} } })};
+      expect(Object.keys(body.questions)).toEqual(["relevance_1","relevance_2","relevance_3"]);
+      return {ok:true,json:async()=>({ answers: {
+        relevance_1:{score:1,confidence:0.98},
+        relevance_2:{score:3,confidence:0.98},
+        relevance_3:{score:0,confidence:0.98},
+      }})};
     };
     const ranked = await rerankRecallHits(hits, "数据库失败", { apiKey:"test", maxCandidates:3, fetchImpl:mock as typeof fetch });
     expect(ranked.map(h => h.index)).toEqual([2,1,3]);
     expect(hits.map(h => h.index)).toEqual([1,2,3]);
+    expect(n).toBe(1);
   });
   it("does not reorder on malformed low-confidence answer", async () => {
     const mock = async () => ({ok:true,json:async()=>({answers:{relevance:{score:3,confidence:0.2}}})});
     expect(await rerankRecallHits(hits, "失败", {apiKey:"test",fetchImpl:mock as typeof fetch})).toBe(hits);
   });
+  it("keeps original lexical order on partially missing multi-question response", async () => {
+    const mock = async () => ({ok:true,json:async()=>({answers:{relevance_1:{score:3,confidence:0.98}}})});
+    expect(await rerankRecallHits(hits,"数据库失败",{apiKey:"test",fetchImpl:mock as typeof fetch})).toBe(hits);
+  });
+
 });
