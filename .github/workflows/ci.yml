@@ -22,5 +22,7 @@ jobs:
         run: bun run typecheck
       - name: Bun tests
         run: PI_FABRIC_COMPACTION_ENGINE= bun test ./tests --path-ignore-patterns '**/real-sessions.test.ts'
+      - name: Real Pi host smoke/e2e
+        run: bun run test:host
       - name: Regression tests
         run: bun run test:regression
