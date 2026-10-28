@@ -9,13 +9,19 @@ export type { JevScoreOptions } from "./jev-client";
 
 import { loadSettings } from "./settings";
 
-export const jevEnabled = (): boolean => {
-  if (!process.env.JEVMODEL_API_KEY) return false;
-  // Environment variable has precedence to preserve existing deployments.
-  if (process.env.PI_VCC_JEV_ENABLED === "1") return true;
-  if (process.env.PI_VCC_JEV_ENABLED === "0") return false;
-  return loadSettings().jevEnabled === true;
+export type JevMode = "off" | "shadow" | "active";
+export const jevMode = (): JevMode => {
+  if (!process.env.JEVMODEL_API_KEY) return "off";
+  const explicit = process.env.PI_VCC_JEV_MODE;
+  if (explicit === "off" || explicit === "shadow" || explicit === "active") return explicit;
+  if (process.env.PI_VCC_JEV_ENABLED === "0") return "off";
+  if (process.env.PI_VCC_JEV_ENABLED === "1") return "active";
+  const config = loadSettings();
+  if (config.jevMode === "off" || config.jevMode === "shadow" || config.jevMode === "active") return config.jevMode;
+  return config.jevEnabled === true ? "active" : "off";
 };
+/** Legacy boolean returns true for both scoring modes (including shadow). */
+export const jevEnabled = (): boolean => jevMode() !== "off";
 
 export function redactMemoryForJev(text: string): string {
   return text
