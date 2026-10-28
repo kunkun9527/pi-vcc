@@ -11,8 +11,8 @@ import { registerInvisibleContinue } from "./src/core/invisible-continue";
 export default (pi: ExtensionAPI) => {
   scaffoldSettings();
   registerInvisibleContinue(pi);
-  registerBeforeCompactHook(pi);
-  registerJevMemoryRanker(pi);
+  const getMemoryScores = registerJevMemoryRanker(pi);
+  registerBeforeCompactHook(pi, getMemoryScores);
   registerProactiveThresholdHook(pi);
   registerPiVccCommand(pi);
   registerVccRecallCommand(pi);

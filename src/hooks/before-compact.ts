@@ -7,7 +7,6 @@ import { normalize } from "../core/normalize";
 import { filterNoise } from "../core/filter-noise";
 import { retiredMemoryIds } from "../core/long-memory";
 import { contextWindowLearner, planContextBudget } from "../core/context-budget";
-import { getJevMemoryScores } from "./jev-memory";
 import {
   CODEX_CONTEXT_OVERFLOW_COMPACT_INSTRUCTION,
   CODEX_OUTPUT_LIMIT_COMPACT_INSTRUCTION,
@@ -453,7 +452,7 @@ export function shouldTriggerResumeForCompaction(
   return !sessionIsIdle;
 }
 
-export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
+export const registerBeforeCompactHook = (pi: ExtensionAPI, getMemoryScores: () => Record<string, number> = () => ({})) => {
   pi.on("session_before_compact", (event, ctx) => {
     // pi-fabric may run before pi-vcc and mark the shared event after claiming it.
     if ((event as any)._fabricCompaction === true) return;
@@ -643,7 +642,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     const compileInput: CompileInput = {
       messages,
       previousSummary: preparation.previousSummary,
-      memoryScores: getJevMemoryScores(),
+      memoryScores: getMemoryScores(),
       sourceEntryIds,
       activeSourceIds,
       fileOps: {
