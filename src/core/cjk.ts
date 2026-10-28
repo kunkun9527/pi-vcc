@@ -41,13 +41,14 @@ export function searchDocumentLength(text: string): number {
 
 /** Approximate tokens only; model tokenizers remain authoritative. */
 export function estimateTextTokens(text: string): number {
-  let han = 0;
+  let wide = 0;
   let other = 0;
   for (const char of text) {
-    if (HAN.test(char)) han++;
+    // Approximate one token for each CJK character, rather than chars / 4.
+    if (WIDE.test(char)) wide += /\p{Extended_Pictographic}/u.test(char) ? 2 : 1;
     else other += char.length;
   }
-  return Math.ceil(han + other / 4);
+  return Math.ceil(wide + other / 4);
 }
 
 /** Approximate terminal-cell width: CJK letters occupy two cells. */

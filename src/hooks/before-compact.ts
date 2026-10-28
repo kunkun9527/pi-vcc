@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { writeFileSync } from "fs";
 import { compile, type CompileInput } from "../core/summarize";
+import { estimateTextTokens } from "../core/cjk";
 import {
   CODEX_CONTEXT_OVERFLOW_COMPACT_INSTRUCTION,
   CODEX_OUTPUT_LIMIT_COMPACT_INSTRUCTION,
@@ -176,27 +177,26 @@ const findMidCycleBoundary = (liveMessages: EntryWithMessage[]): number => {
   return best;
 };
 
-/** Rough token estimate (chars/4) for a live message, consistent with the
- * kept-tokens estimate used elsewhere in this module. */
+/** Conservative estimate for a mixed Han/Latin live message. */
 function estimateMessageTokens(message: { content: unknown }): number {
   const c = message.content;
-  let chars = 0;
+  const pieces: string[] = [];
   if (typeof c === "string") {
-    chars = c.length;
+    pieces.push(c);
   } else if (Array.isArray(c)) {
     for (const part of c as any[]) {
-      if (part.text) chars += part.text.length;
+      if (part.text) pieces.push(part.text);
       else if (part.type === "toolCall") {
         const args = part.arguments ?? part.input;
-        chars += (part.name?.length ?? 0) + (typeof args === "string" ? args.length : JSON.stringify(args ?? "").length);
+        pieces.push(part.name ?? "", typeof args === "string" ? args : JSON.stringify(args ?? ""));
       } else if (part.type === "toolResult") {
-        chars += typeof part.content === "string" ? part.content.length : JSON.stringify(part.content ?? "").length;
+        pieces.push(typeof part.content === "string" ? part.content : JSON.stringify(part.content ?? ""));
       } else if (part.type === "thinking") {
-        chars += (part.thinking?.length ?? 0);
+        pieces.push(part.thinking ?? "");
       }
     }
   }
-  return Math.ceil(chars / 4);
+  return estimateTextTokens(pieces.join(" "));
 }
 
 /** Find a completed tool-cycle boundary within `suffix` such that the kept
@@ -619,21 +619,13 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     const keptEntries = keptIdx >= 0
       ? (branchEntries as any[]).slice(keptIdx).filter((e: any) => e.type === "message")
       : [];
-    const keptChars = keptEntries.reduce((sum: number, e: any) => {
-      const c = e.message?.content;
-      if (typeof c === "string") return sum + c.length;
-      if (Array.isArray(c)) return sum + c.reduce((s: number, p: any) => {
-        if (p.text) return s + p.text.length;
-        if (p.type === "toolCall") return s + (p.name?.length ?? 0) + (typeof p.input === "string" ? p.input.length : JSON.stringify(p.input ?? "").length);
-        if (p.type === "toolResult") return s + (typeof p.content === "string" ? p.content.length : JSON.stringify(p.content ?? "").length);
-        return s;
-      }, 0);
-      return sum;
-    }, 0);
+    const keptTokens = keptEntries.reduce(
+      (sum: number, e: any) => sum + estimateMessageTokens(e.message ?? { content: "" }), 0,
+    );
     lastStats = {
       summarized: agentMessages.length,
       kept: keptEntries.length,
-      keptTokensEst: Math.round(keptChars / 4),
+      keptTokensEst: keptTokens,
     };
 
     const config = settings;
