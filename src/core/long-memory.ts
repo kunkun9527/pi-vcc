@@ -1,7 +1,14 @@
 import type { NormalizedBlock } from "../types";
 
 export type FactKind = "constraint" | "blocker" | "decision";
-export interface MemoryFact { kind: FactKind; id: string; text: string }
+export interface MemoryFact {
+  kind: FactKind;
+  id: string;
+  text: string;
+  /** Exact Pi session entry ID. Omitted for legacy summaries. */
+  sourceId?: string;
+  status?: "confirmed" | "proposed";
+}
 const HEADER = "[Long-term Memory]";
 const GUARD = /(?:不要|请勿|禁止|必须|务必|始终|永远|不可|只能|只允许|\bnever\b|\balways\b|\bmust\b|\bdo not\b)/iu;
 const ISSUE = /(?:仍然失败|尚未解决|未解决|阻塞|卡住|无法|报错|失败|\bblocked\b|\bunresolved\b|\bcannot\b)/iu;
@@ -15,7 +22,7 @@ function hash(value: string): string {
 }
 export const memoryId = (kind: FactKind, text: string): string => hash(kind + ":" + text.replace(/\s+/g, " ").trim());
 
-export function collectMemory(blocks: NormalizedBlock[]): MemoryFact[] {
+export function collectMemory(blocks: NormalizedBlock[], sourceEntryIds: string[] = []): MemoryFact[] {
   const result: MemoryFact[] = [];
   const seen = new Set<string>();
   for (const block of blocks) {
@@ -38,7 +45,13 @@ export function collectMemory(blocks: NormalizedBlock[]): MemoryFact[] {
         width += cells;
       }
       const id = memoryId(kind, clipped);
-      if (!seen.has(id)) { seen.add(id); result.push({ kind, id, text: clipped }); }
+      if (!seen.has(id)) {
+        seen.add(id);
+        const source = block.sourceIndex === undefined ? undefined : sourceEntryIds[block.sourceIndex];
+        const sourceId = source && /^[A-Za-z0-9_-]{1,80}$/.test(source) ? source : undefined;
+        result.push({ kind, id, text: clipped, ...(sourceId ? { sourceId } : {}),
+          status: block.kind === "user" ? "confirmed" : "proposed" });
+      }
     }
   }
   return result;
@@ -52,20 +65,40 @@ export function resolvedMemoryIds(blocks: NormalizedBlock[]): Set<string> {
   return resolved;
 }
 
+/** Explicit retirement, supersession and expiry markers from a real user turn.
+ * Never treat a quoted file or assistant claim as a memory deletion instruction.
+ */
+export function retiredMemoryIds(blocks: NormalizedBlock[]): Set<string> {
+  const ids = resolvedMemoryIds(blocks);
+  const re = /(?:废弃|替代|过期|撤销|superseded|expired|retracted)\s*[:：#]\s*([0-9a-f]{8})/giu;
+  for (const block of blocks) if (block.kind === "user") {
+    for (const m of block.text.matchAll(re)) ids.add(m[1].toLowerCase());
+  }
+  return ids;
+}
+
 const LINE = /^- \[(constraint|blocker|decision):([0-9a-f]{8})\] (.+)$/u;
+const SOURCE = /^  @source:([A-Za-z0-9_-]{1,80}) status:(confirmed|proposed)$/u;
 export function parseMemory(section: string): MemoryFact[] {
   const facts: MemoryFact[] = [];
   const seen = new Set<string>();
   for (const line of section.split("\n")) {
     const m = LINE.exec(line);
-    if (!m) continue;
-    const kind = m[1] as FactKind, id = m[2], text = m[3];
-    if (memoryId(kind, text) !== id || seen.has(id)) continue;
-    seen.add(id); facts.push({ kind, id, text });
+    if (m) {
+      const kind = m[1] as FactKind, id = m[2], text = m[3];
+      if (memoryId(kind, text) !== id || seen.has(id)) continue;
+      seen.add(id); facts.push({ kind, id, text });
+      continue;
+    }
+    const src = SOURCE.exec(line);
+    if (src && facts.length) {
+      const last = facts[facts.length - 1];
+      last.sourceId = src[1];
+      last.status = src[2] as "confirmed" | "proposed";
+    }
   }
   return facts;
 }
-
 export function selectMemory(facts: MemoryFact[], scores: Record<string, number> = {}): MemoryFact[] {
   const unique = [...new Map(facts.map(f => [f.id, f])).values()];
   const chosen: MemoryFact[] = [];
@@ -81,8 +114,17 @@ export function selectMemory(facts: MemoryFact[], scores: Record<string, number>
 }
 export function formatMemory(facts: MemoryFact[], scores?: Record<string, number>): string {
   const selected = selectMemory(facts, scores);
-  return selected.length ? HEADER + "\n" + selected.map(f => `- [${f.kind}:${f.id}] ${f.text}`).join("\n") : "";
+  return selected.length ? HEADER + "\n" + selected.map(f =>
+    `- [${f.kind}:${f.id}] ${f.text}` +
+    (f.sourceId ? `\n  @source:${f.sourceId} status:${f.status ?? "proposed"}` : "")
+  ).join("\n") : "";
 }
-export function mergeMemory(prev: string, fresh: string, scores?: Record<string, number>, resolved: Set<string> = new Set()): string {
-  return formatMemory([...parseMemory(prev), ...parseMemory(fresh)].filter(f => !resolved.has(f.id)), scores);
+export function mergeMemory(
+  prev: string, fresh: string, scores?: Record<string, number>,
+  retired: Set<string> = new Set(), activeSourceIds?: Set<string>,
+): string {
+  const facts = [...parseMemory(prev), ...parseMemory(fresh)].filter(f =>
+    !retired.has(f.id) && (!activeSourceIds || !f.sourceId || activeSourceIds.has(f.sourceId))
+  );
+  return formatMemory(facts, scores);
 }

@@ -5,7 +5,7 @@ import { filterNoise } from "./filter-noise";
 import { buildSections } from "./build-sections";
 import { formatSummary, capBrief, wrapLongLines } from "./format";
 import { refineBreadcrumbKey } from "./causal-keys";
-import { collectMemory, formatMemory, mergeMemory, resolvedMemoryIds } from "./long-memory";
+import { collectMemory, formatMemory, mergeMemory, retiredMemoryIds } from "./long-memory";
 
 export interface CompileInput {
   messages: Message[];
@@ -13,6 +13,10 @@ export interface CompileInput {
   fileOps?: FileOps;
   /** Optional advisory scores, never override protected memory categories. */
   memoryScores?: Record<string, number>;
+  /** Maps message indices to their original, stable session entry IDs. */
+  sourceEntryIds?: string[];
+  /** Source IDs belonging to the active session branch. */
+  activeSourceIds?: Set<string>;
 }
 
 // Cache-friendly order: stable sections first, volatile sections last
@@ -133,8 +137,8 @@ const extractBreadcrumb = (line: string): string => {
 };
 
 /** Merge a header section */
-const mergeHeaderSection = (header: string, prev: string, fresh: string, scores?: Record<string, number>, resolved?: Set<string>): string => {
-  if (header === "Long-term Memory") return mergeMemory(prev, fresh, scores, resolved);
+const mergeHeaderSection = (header: string, prev: string, fresh: string, scores?: Record<string, number>, resolved?: Set<string>, active?: Set<string>): string => {
+  if (header === "Long-term Memory") return mergeMemory(prev, fresh, scores, resolved, active);
   // Outstanding Context, Type Catalog are volatile -- always use fresh only
   if (header === "Outstanding Context" || header === "Type Catalog") return fresh;
   if (!prev && !fresh) return "";
@@ -232,13 +236,13 @@ const mergeBriefTranscript = (prev: string, fresh: string): string => {
   return prev + "\n\n" + fresh;
 };
 
-const mergePrevious = (prev: string, fresh: string, scores?: Record<string, number>, resolved?: Set<string>): string => {
+const mergePrevious = (prev: string, fresh: string, scores?: Record<string, number>, resolved?: Set<string>, active?: Set<string>): string => {
   // Merge header sections
   const headers = HEADER_NAMES
     .map((header) => {
       const freshSec = sectionOf(fresh, header);
       const prevSec = sectionOf(prev, header);
-      return mergeHeaderSection(header, prevSec, freshSec, scores, resolved);
+      return mergeHeaderSection(header, prevSec, freshSec, scores, resolved, active);
     })
     .filter(Boolean);
 
@@ -262,7 +266,7 @@ export const compile = (input: CompileInput): string => {
   const blocks = filterNoise(normalize(input.messages));
   const data = buildSections({ blocks });
   const formatted = formatSummary(data);
-  const memory = formatMemory(collectMemory(blocks), input.memoryScores);
+  const memory = formatMemory(collectMemory(blocks, input.sourceEntryIds), input.memoryScores);
   const separatorAt = formatted.indexOf(SEPARATOR);
   const fresh = memory
     ? separatorAt >= 0
@@ -274,7 +278,7 @@ export const compile = (input: CompileInput): string => {
   const prev = input.previousSummary
     ? stripRecallNote(input.previousSummary)
     : undefined;
-  const merged = prev ? mergePrevious(prev, fresh, input.memoryScores, resolvedMemoryIds(blocks)) : fresh;
+  const merged = prev ? mergePrevious(prev, fresh, input.memoryScores, retiredMemoryIds(blocks), input.activeSourceIds) : fresh;
   if (!merged) return "";
   const body = merged;
   return wrapLongLines(HANDFOFF_PREAMBLE + "\n\n" + body);
