@@ -86,14 +86,15 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
     label: "VCC Recall",
     description:
       "Search session history. Defaults to active lineage; use scope:'all' to include off-lineage branches." +
-      " Supports regex queries, paging, and expand indices. " +
+      " Supports regex queries, paging, evidenceId direct lookup, and expand indices. " +
       "Use scope:'compaction:N' to search within a specific compaction's message range.",
     promptSnippet:
       "vcc_recall: Search history; default scope is active lineage. " +
       "Use scope:'all' for off-lineage branches. " +
       "Use scope:'compaction:N' or scope:'compaction:latest' for targeted search within a compaction segment. " +
-      "expand:[indices] returns full content for those entries, composable with query to expand matched results.",
+      "expand:[indices] returns full content. evidenceId:<source-entry-id> retrieves the exact cited message in active lineage.",
     parameters: Type.Object({
+      evidenceId: Type.Optional(Type.String({ description: "Exact original Pi session entry ID from [Long-term Memory] @source. Retrieves source content directly, scoped to active lineage unless scope:'all'." })),
       query: Type.Optional(
         Type.String({ description: "Search terms or regex pattern (e.g. 'hook|inject', 'fail.*build'). Multi-word = OR ranked by relevance." }),
       ),
@@ -142,6 +143,22 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         : undefined;
       const expandSet = new Set(params.expand ?? []);
       const hasExpand = expandSet.size > 0;
+
+      // Direct evidence addressing bypasses the lossy lexical search/reranker.
+      // Permission/scope filtering happens before the ID lookup.
+      if (params.evidenceId?.trim()) {
+        const sourceId = params.evidenceId.trim();
+        const { rendered, entryIds } = loadAllMessages(sessionFile, true, lineageEntryIds, entryFilter);
+        const index = entryIds.indexOf(sourceId);
+        if (index < 0) return {
+          content: [{ type: "text", text: "Evidence ID not found in the requested scope or active branch." }],
+          details: undefined,
+        };
+        return {
+          content: [{ type: "text", text: `Evidence source ${sourceId}\n` + formatRecallOutput([rendered[index]]) }],
+          details: undefined,
+        };
+      }
 
       if (hasExpand && !params.query) {
         const { rendered: fullMsgs } = loadAllMessages(sessionFile, true, lineageEntryIds, entryFilter);
