@@ -84,7 +84,7 @@ export function jevLedgerSummary(records: readonly JevLedgerRecord[]): string {
   const memory = records.filter(row => row.operation === "memory").length;
   return `Jev scoring: ${attempts} batches (${memory} memory, ${attempts - memory} recall)\n` +
     `Valid: ${valid.length}/${attempts}; fallback: ${attempts - valid.length}\n` +
-    `Shadow: ${shadow}; active applied: ${applied}; suggested reorder: ${changed}\n` +
+    `Shadow: ${shadow}; active scoring applied: ${applied}; potential priority changes: ${changed}\n` +
     `Average batch latency: ${averageMs} ms\n` +
     "Metadata only: no queries, candidates, source IDs, or API keys are logged.";
 }
