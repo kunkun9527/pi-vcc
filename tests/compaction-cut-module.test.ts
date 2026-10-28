@@ -14,4 +14,12 @@ describe("compaction-cut deep module seam", () => {
     expect(cut.ok).toBe(true);
     if(cut.ok) expect(computeMessageRange(entries,cut.firstKeptEntryId)).toEqual(["u1","a1"]);
   });
+  it("does not repeat earlier messages on second and later compactions", () => {
+    const entry=(id:string)=>({id,type:"message",message:{role:"user",content:id}});
+    const entries=[entry("old1"),entry("old2"),{id:"c1",type:"compaction",firstKeptEntryId:"new1"},
+      entry("new1"),entry("new2"),entry("new3")];
+    expect(computeMessageRange(entries,"new3",["new1","new2"])).toEqual(["new1","new2"]);
+    expect(computeMessageRange(entries,"",["new1","new2","new3"])).toEqual(["new1","new3"]);
+  });
+
 });
