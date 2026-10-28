@@ -19,13 +19,13 @@ Environment override precedence is `PI_VCC_JEV_MODE` (off/shadow/active),
 then legacy `PI_VCC_JEV_ENABLED` (0/1), then `jevMode`, then
 `jevEnabled`. **Every non-off mode still requires `JEVMODEL_API_KEY`.**
 
-Use `/pi-vcc-jev-stats` to view batch counts, fallbacks, shadow runs, suggested
+Use `/pi-vcc-jev-stats` to view batch counts, fallbacks, shadow runs, potential
 reorders and average latency. A local metadata-only ledger is stored at the
 Pi agent directory's `pi-vcc-jev-ledger.jsonl` (override with
 `PI_VCC_JEV_LEDGER_PATH`). It contains timestamps, mode, counts, success,
-reorder flags and latency only—**no query text, candidate text, memory/source ID,
+priority-change flags (against deterministic recency for memory) and latency only—**no query text, candidate text, memory/source ID,
 response payload or API keys**. The ledger rotates at approximately 1 MiB.
-Stats are observational and do not prove improved historical answer accuracy.
+Stats are observational and do not prove improved historical answer accuracy.\nChanging the mode invalidates cached active scores immediately, including in-flight results from older generations.\nA changed score is not counted as a priority change unless the candidate order actually differs from the deterministic newest-first baseline.
 
 ## Enable optional hosted Jev scoring
 

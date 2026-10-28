@@ -81,7 +81,7 @@ pi install git:github.com/kunkun9527/pi-vcc
 {"evidenceId": "entry-123"}
 ```
 
-这里的 ID 是 Pi session 条目的 ID，**不是搜索结果的行号**。工具会从 JSONL 恢复原始消息，默认要求该 ID 属于当前活动分支；找不到时不会编造证据。旧版压缩摘要没有来源元数据的记录仍可以保留，但不能冒充已验证来源。
+这里的 ID 是 Pi session 条目的 ID，**不是搜索结果的行号**。工具会先验证消息是否属于当前活动分支和指定压缩范围，再按原始 JSONL 字节偏移按需展开；因此不会顺带读取其他巨型消息。找不到或证据源已变化时不会编造内容。旧版压缩摘要没有来源元数据的记录仍可以保留，但不能冒充已验证来源。解析长期记忆时，无效、重复或断开的记录不会借用前一条事实的 `@source` 或 `@file`。
 
 ## 压缩如何工作
 
@@ -141,7 +141,7 @@ pi-vcc 的检索默认以当前活动 lineage 为界。长期记忆合并时，�
 
 ## 可选 Jev 评分
 
-Jev 已支持 **off / shadow / active** 三种模式，可在 `/pi-vcc-config` 里设置。Shadow 会发送批量评分请求并记录匿名统计，但不影响现有摘要和检索排序。通过 `/pi-vcc-jev-stats` 查看批次成功率、回退、耗时和建议排序变化。批量评分默认最多评估 4 条记忆或 4 条检索结果，单次 HTTP 提交，任一答案无效则整批回退。
+Jev 已支持 **off / shadow / active** 三种模式，可在 `/pi-vcc-config` 里设置。Shadow 会发送批量评分请求并记录匿名统计，但不影响现有摘要和检索排序。通过 `/pi-vcc-jev-stats` 查看批次成功率、回退、耗时和**潜在优先级变化**。潜在变化是相对于确定性排序的差异，不能当作历史问答准确率提升。批量评分默认最多评估 4 条记忆或 4 条检索结果，单次 HTTP 提交，任一答案无效则整批回退。
 
 日志仅记录元数据，不记录原始候选、问题文本、来源 ID 或密钥；默认写入 Pi Agent 配置目录下 `pi-vcc-jev-ledger.jsonl`，约 1 MiB 后轮换。仍需 `JEVMODEL_API_KEY` 才能请求服务。
 
@@ -171,7 +171,7 @@ export JEVMODEL_API_KEY="your-key"
 /pi-vcc-config
 ```
 
-面板采用 Pi 原生 `SettingsList`（参考 billion-context-pi-lean）：**↑↓** 选择、**Enter** 切换、**Esc** 关闭，修改会即时保存并在后续压缩中生效。支持：
+面板采用 Pi 原生 `SettingsList`（参考 billion-context-pi-lean）：**↑↓** 选择、**Enter** 切换、**Esc** 关闭，修改会即时保存并在后续压缩中生效；Jev 模式切换也会立即使旧的 active 评分缓存失效。支持：
 
 - 接管默认 `/compact` 的开关，以及全局和当前模型的压缩触发阈值（百分比、绝对 Token、预留 Token、继承）。
 - 全局和当前模型近期保留 Token 设置；pi-vcc 自身仍以任务边界与预算逻辑为主。
@@ -198,7 +198,7 @@ export JEVMODEL_API_KEY="your-key"
 - `globalThreshold` 与 `modelThresholds`：按所有模型或单一模型定义触发阈值，也支持 `compactAtTokens` 和 `reserveTokens`。省略时使用 Pi 的全局设置。
 - `debug`：记录调试信息，可能涉及摘要预览；生产或敏感会话建议关闭。
 
-阈值负责“何时触发”，自适应预算负责“压缩后保留多少近期消息”；两者不同。Pi 原生 compaction、其他 context 引擎和 pi-fabric 的共同安装需特别检查哪个组件拥有压缩钩子，避免重复压缩。
+阈值负责“何时触发”，自适应预算负责“压缩后保留多少近期消息”；两者不同。自动压缩的冷却时间、触发标记与 Codex 溢出状态按 Pi 扩展实例隔离，避免两个会话相互干扰。Pi 原生 compaction、其他 context 引擎和 pi-fabric 的共同安装需特别检查哪个组件拥有压缩钩子，避免重复压缩。
 
 ## 测试与已知限制
 

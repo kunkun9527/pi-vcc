@@ -50,9 +50,15 @@ export async function scoreMemoryDecisions(
     instructions: "How important is preserving this decision for the ongoing software project over many future compactions? Score consequences, not verbosity.",
     criteria: ["incidental", "minor", "relevant", "critical"],
   }, items.map(fact => redactMemoryForJev(fact.text)), options, 1800);
-  const changed = Boolean(values && values.some((score, i) =>
-    i > 0 && score !== values[i - 1],
-  ));
+  // The deterministic decision baseline is recency (latest first).
+  // Unequal scores do NOT imply a priority change: [0,1,2] still preserves
+  // the deterministic order of three oldest-to-newest candidates.
+  const scoredOrder = values
+    ? items.map((_, i) => i).sort((a, b) => values[b] - values[a] || b - a)
+    : [];
+  const changed = scoredOrder.some((originalIndex, rank) =>
+    originalIndex !== items.length - 1 - rank,
+  );
   if (options.log) recordJevEvaluation({
     operation: "memory", mode: options.mode === "shadow" ? "shadow" : "active",
     source: values ? "judge" : "fallback", count: items.length,

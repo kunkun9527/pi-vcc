@@ -115,4 +115,32 @@ describe("Jev shadow mode and privacy-safe ledger", () => {
       rmSync(root,{recursive:true,force:true});
     }
   });
+  it("counts a priority change only when Jev differs from newest-first baseline", async () => {
+    const dir=mkdtempSync(join(tmpdir(),"vcc-jev-priority-"));
+    const previous=process.env.PI_VCC_JEV_LEDGER_PATH;
+    process.env.PI_VCC_JEV_LEDGER_PATH=join(dir,"audit.jsonl");
+    try {
+      const facts=[{kind:"decision" as const,id:"old",text:"决定采用旧方案"},
+        {kind:"decision" as const,id:"mid",text:"决定采用中间方案"},
+        {kind:"decision" as const,id:"new",text:"决定采用新方案"}];
+      const judge=(scores:number[])=>async()=>({ok:true,json:async()=>({answers:Object.fromEntries(
+        scores.map((score,i)=>["importance_"+(i+1),{score,confidence:0.95}]),
+      )})});
+      // Scores rise oldest->newest, so they do NOT change deterministic recency.
+      await scoreMemoryDecisions(facts,{apiKey:"key",mode:"shadow",log:true,
+        fetchImpl:judge([0,1,2]) as unknown as typeof fetch});
+      // This genuinely promotes the oldest decision.
+      await scoreMemoryDecisions(facts,{apiKey:"key",mode:"shadow",log:true,
+        fetchImpl:judge([3,2,1]) as unknown as typeof fetch});
+      const rows=readJevLedger();
+      expect(rows.map(row=>row.changed)).toEqual([false,true]);
+      expect(rows.map(row=>row.applied)).toEqual([false,false]);
+      expect(jevLedgerSummary(rows)).toContain("potential priority changes: 1");
+    } finally {
+      if(previous===undefined) delete process.env.PI_VCC_JEV_LEDGER_PATH;
+      else process.env.PI_VCC_JEV_LEDGER_PATH=previous;
+      rmSync(dir,{recursive:true,force:true});
+    }
+  });
+
 });
