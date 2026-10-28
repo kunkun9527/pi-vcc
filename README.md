@@ -152,6 +152,22 @@ export JEVMODEL_API_KEY="your-key"
 
 具体协议与限制：[JEV_MEMORY.md](docs/JEV_MEMORY.md)。
 
+## TUI 配置面板
+
+在 Pi 的交互式终端中输入：
+
+```text
+/pi-vcc-config
+```
+
+面板采用 Pi 原生 `SettingsList`（参考 billion-context-pi-lean）：**↑↓** 选择、**Enter** 切换、**Esc** 关闭，修改会即时保存并在后续压缩中生效。支持：
+
+- 接管默认 `/compact` 的开关，以及全局和当前模型的压缩触发阈值（百分比、绝对 Token、预留 Token、继承）。
+- 全局和当前模型近期保留 Token 设置；pi-vcc 自身仍以任务边界与预算逻辑为主。
+- 调试日志开关，以及默认关闭的可选 Jev 评分开关（仍需单独提供 `JEVMODEL_API_KEY`）。
+
+面板将设置写入同一份 `pi-vcc-config.json`，保留其他模型和未知字段；损坏的 JSON 会拒绝覆盖。没有选定模型时隐藏模型专属选项；非 TUI 模式会提示手动编辑设置文件。若设置了 `PI_VCC_JEV_ENABLED=0` 或 `=1`，环境变量的 Jev 开关优先于面板值。
+
 ## 配置
 
 默认配置由扩展初始化生成。位置通常位于 Pi Agent 的配置目录下 `pi-vcc-config.json`；可用环境变量 `PI_VCC_CONFIG_PATH` 指定其他路径。
