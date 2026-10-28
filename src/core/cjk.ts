@@ -15,7 +15,8 @@ const cellWidth = (char: string): number => MARK.test(char) ? 0 : WIDE.test(char
 export function searchTerms(query: string): string[] {
   const terms: string[] = [];
   for (const match of query.matchAll(HAN_RUNS)) {
-    const part = match[0];
+    // Question prefixes are not content terms; keep code identifiers literal.
+    const part = match[0].replace(/^(?:请帮我|请帮忙|请问|帮我|如何|怎么|为什么|有没有|请)/u, "");
     if (!HAN.test(part)) {
       for (const term of part.match(/[\p{L}\p{N}_./-]+/gu) ?? []) terms.push(term);
       continue;
@@ -26,7 +27,7 @@ export function searchTerms(query: string): string[] {
       terms.push(chars[i] + chars[i + 1]);
     }
   }
-  return [...new Set(terms)];
+  return [...new Set(terms)].slice(0, 48);
 }
 
 /** Search document length with unspaced Han runs instead of whitespace only. */

@@ -2,6 +2,7 @@ import type { Message } from "@earendil-works/pi-ai";
 import type { RenderedEntry } from "./render-entries";
 import { textOf, thinkingOf, toolCallsOf } from "./content";
 import { fabricArgsText, fabricOperationsOf, fabricResultText } from "./fabric-trace";
+import { searchTerms, searchDocumentLength } from "./cjk";
 
 export interface SearchHit extends RenderedEntry {
   /** Context snippet around the first matched term (only when query provided) */
@@ -152,6 +153,8 @@ const STOPWORDS = new Set([
   "other", "some", "such", "no", "nor", "not", "only", "own", "same",
   "so", "than", "too", "very", "just", "about", "it", "its", "that",
   "this", "what", "which", "who", "whom", "these", "those",
+  // Frequent Chinese conversational fillers; avoid unrelated recall hits.
+  "如何", "怎么", "什么", "请问", "一下", "这个", "那个", "还有", "是否", "是不是",
 ]);
 
 /** Remove stopwords, keep meaningful terms. */
@@ -212,7 +215,7 @@ const buildBM25Context = (docs: string[], termCache: Map<string, RegExp>): BM25C
   let totalLen = 0;
 
   for (const doc of docs) {
-    totalLen += doc.split(/\s+/).length;
+    totalLen += searchDocumentLength(doc);
     for (const [t, re] of termCache) {
       if (reTest(re, doc)) {
         df.set(t, (df.get(t) ?? 0) + 1);
@@ -225,7 +228,7 @@ const buildBM25Context = (docs: string[], termCache: Map<string, RegExp>): BM25C
 
 /** BM25 score for a single doc against query terms. Uses precompiled cache. */
 const bm25Score = (doc: string, termCache: Map<string, RegExp>, ctx: BM25Context): number => {
-  const dl = doc.split(/\s+/).length;
+  const dl = searchDocumentLength(doc);
   let score = 0;
 
   for (const [t, re] of termCache) {
@@ -326,8 +329,9 @@ export const searchEntries = (
 
   // Precompile all term regexes once — used across countMatches,
   // buildBM25Context, bm25Score, and snippet generation.
-  const rawTerms = rawQuery.split(/\s+/);
+  const rawTerms = searchTerms(rawQuery);
   const terms = filterStopwords(rawTerms);
+  if (terms.length === 0) return [];
   const termCache = compileTerms(terms);
   const snipRe = snippetRegex(terms, termCache);
 
@@ -347,7 +351,10 @@ export const searchEntries = (
   // This prevents common domain vocabulary (e.g. "document", "policy",
   // "review" in government/corporate sessions) from matching nearly
   // every entry via pure OR semantics.
-  const minMatchCount = terms.length >= 3 ? MIN_TERM_MATCH_FOR_MULTITERM : 1;
+  const isHanQuery = /\p{Script=Han}/u.test(rawQuery);
+  const minMatchCount = isHanQuery && terms.length >= 3
+    ? Math.max(MIN_TERM_MATCH_FOR_MULTITERM, Math.ceil(terms.length * 0.6))
+    : terms.length >= 3 ? MIN_TERM_MATCH_FOR_MULTITERM : 1;
 
   const scored: Array<{ hit: SearchHit; score: number }> = [];
   for (let i = 0; i < entries.length; i++) {
