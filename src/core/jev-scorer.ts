@@ -4,7 +4,7 @@ import type { MemoryFact } from "./long-memory";
  * PI_VCC_JEV_ENABLED=1 and JEVMODEL_API_KEY. It only advises decision ordering.
  * No API response can erase protected constraints or unresolved blockers.
  */
-import { requestJevScore, type JevScoreOptions } from "./jev-client";
+import { requestJevScores, type JevScoreOptions } from "./jev-client";
 export type { JevScoreOptions } from "./jev-client";
 
 import { loadSettings } from "./settings";
@@ -34,15 +34,14 @@ export async function scoreMemoryDecisions(
   if (!options.apiKey) return scores;
   const items = facts.filter(f => f.kind === "decision")
     .slice(-Math.max(0, Math.min(4, options.maxCandidates ?? 4)));
-  for (const fact of items) {
-    const score = await requestJevScore({
-      name: "importance",
-      state: { candidate: redactMemoryForJev(fact.text), type: "historical project decision" },
-      instructions: "How important is preserving this decision for the ongoing software project over many future compactions? Score consequences, not verbosity.",
-      criteria: ["incidental", "minor", "relevant", "critical"],
-    }, options, 1800);
-    if (score === undefined) break;
-    scores[fact.id] = score;
-  }
-    return scores;
+  if (!items.length) return scores;
+  const values = await requestJevScores({
+    name: "importance",
+    state: { type: "historical project decision" },
+    instructions: "How important is preserving this decision for the ongoing software project over many future compactions? Score consequences, not verbosity.",
+    criteria: ["incidental", "minor", "relevant", "critical"],
+  }, items.map(fact => redactMemoryForJev(fact.text)), options, 1800);
+  if (!values) return scores;
+  items.forEach((fact, i) => { scores[fact.id] = values[i]; });
+  return scores;
 }

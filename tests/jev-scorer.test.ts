@@ -38,4 +38,30 @@ describe("optional Jev scoring", () => {
     const mock = async () => ({ok:true,json:async()=>({answers:{importance:{score:3,confidence:0.1}}})});
     expect(await scoreMemoryDecisions(decisions,{apiKey:"test",fetchImpl:mock as typeof fetch})).toEqual({});
   });
+  it("scores four candidate decisions in a single bounded System One call", async () => {
+    const many = Array.from({ length: 4 }, (_, i) => ({
+      kind: "decision" as const, id: "id_" + i, text: "决定使用策略 " + i,
+    }));
+    let calls = 0;
+    const fetchImpl = async (_url: any, init: any) => {
+      calls++;
+      const body = JSON.parse(init.body);
+      expect(Object.keys(body.questions)).toEqual(["importance_1","importance_2","importance_3","importance_4"]);
+      expect(body.state.candidate_4).toContain("策略 3");
+      return {ok:true,json:async()=>({answers:Object.fromEntries(
+        [1,2,3,0].map((score,i)=>["importance_"+(i+1),{score,confidence:0.9}]),
+      )})};
+    };
+    expect(await scoreMemoryDecisions(many,{apiKey:"test",fetchImpl:fetchImpl as typeof fetch}))
+      .toEqual({id_0:1,id_1:2,id_2:3,id_3:0});
+    expect(calls).toBe(1);
+  });
+  it("rejects partial multi-answer responses without using biased partial scores", async () => {
+    const fetchImpl = async () => ({ok:true,json:async()=>({answers:{
+      importance_1:{score:3,confidence:0.99},
+    }})});
+    expect(await scoreMemoryDecisions(decisions,{apiKey:"test",fetchImpl:fetchImpl as typeof fetch}))
+      .toEqual({});
+  });
+
 });
