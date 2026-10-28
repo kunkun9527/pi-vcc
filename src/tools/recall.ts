@@ -3,6 +3,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "fs";
 import { loadAllMessages } from "../core/load-messages";
 import { searchEntries, type SearchHit } from "../core/search-entries";
+import { rerankRecallHits } from "../core/jev-recall";
+import { jevEnabled } from "../core/jev-scorer";
 import { formatRecallOutput } from "../core/format-recall";
 import { getActiveLineageEntryIds } from "../core/lineage";
 import { normalizeRecallScope } from "../core/recall-scope";
@@ -162,9 +164,12 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
       }
 
       const { rendered: msgs, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds, entryFilter);
-      const allResults = params.query?.trim()
+      const lexical = params.query?.trim()
         ? searchEntries(msgs, rawMessages, params.query)
         : msgs.slice(-DEFAULT_RECENT);
+      const allResults = params.query?.trim() && jevEnabled()
+        ? await rerankRecallHits(lexical, params.query, { apiKey: process.env.JEVMODEL_API_KEY ?? "" })
+        : lexical;
 
       if (params.query?.trim()) {
         const searchScopeLabel = scopeLabel || (rawScope === "all" ? " (scope: all)" : "");
