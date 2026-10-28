@@ -18,7 +18,8 @@
     "@earendil-works/pi-agent-core": "*",
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
-    "typebox": "*"
+    "typebox": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
@@ -28,7 +29,8 @@
     "vitest": "4.1.7",
     "@earendil-works/pi-ai": "1.3.0",
     "@earendil-works/pi-agent-core": "1.3.0",
-    "typebox": "1.3.27"
+    "typebox": "1.3.27",
+    "@earendil-works/pi-tui": "1.3.0"
   },
   "scripts": {
     "test:host": "node scripts/pi1-host.mjs",
