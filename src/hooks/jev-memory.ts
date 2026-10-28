@@ -5,7 +5,7 @@ import { collectMemory } from "../core/long-memory";
 import { jevMode, scoreMemoryDecisions } from "../core/jev-scorer";
 
 /** Each registered extension instance gets an isolated Jev score cache. */
-export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, number> {
+export function registerJevMemoryRanker(pi: ExtensionAPI, score: typeof scoreMemoryDecisions = scoreMemoryDecisions): () => Record<string, number> {
   let sessionFile: string | undefined;
   let cached: Record<string, number> = {};
   const tried = new Set<string>();
@@ -51,7 +51,7 @@ export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, 
       for (const fact of batch) tried.add(fact.id);
       if (!batch.length) return;
       const started = generation;
-      const scores = await scoreMemoryDecisions(batch, {
+      const scores = await score(batch, {
         apiKey: process.env.JEVMODEL_API_KEY ?? "",
         maxCandidates: 4,
         mode, log: true,
