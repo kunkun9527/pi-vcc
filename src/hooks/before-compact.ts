@@ -8,6 +8,7 @@ import { auditMemoryCompaction } from "../core/memory-integrity";
 import { normalize } from "../core/normalize";
 import { filterNoise } from "../core/filter-noise";
 import { retiredMemoryIds } from "../core/long-memory";
+import { captureCodeChangeSnapshot } from "../core/memory-freshness";
 import { contextWindowLearner, planContextBudget } from "../core/context-budget";
 import {
   CODEX_CONTEXT_OVERFLOW_COMPACT_INSTRUCTION,
@@ -304,6 +305,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, getMemoryScores: () 
       memoryScores: getMemoryScores(),
       sourceEntryIds,
       activeSourceIds,
+      codeSnapshot: captureCodeChangeSnapshot((ctx as any)?.cwd ?? process.cwd()),
       fileOps: {
         readFiles: [...preparation.fileOps.read],
         modifiedFiles: [...preparation.fileOps.written, ...preparation.fileOps.edited],

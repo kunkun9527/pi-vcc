@@ -1,4 +1,5 @@
 import type { NormalizedBlock } from "../types";
+import { extractMemoryFiles, trackCodeMemory, type CodeChangeSnapshot, type FreshnessState } from "./memory-freshness";
 
 export type FactKind = "constraint" | "blocker" | "decision";
 export interface MemoryFact {
@@ -8,6 +9,9 @@ export interface MemoryFact {
   /** Exact Pi session entry ID. Omitted for legacy summaries. */
   sourceId?: string;
   status?: "confirmed" | "proposed";
+  relatedFiles?: string[];
+  baselineCommit?: string;
+  freshness?: FreshnessState;
 }
 const HEADER = "[Long-term Memory]";
 const GUARD = /(?:不要|请勿|禁止|必须|务必|始终|永远|不可|只能|只允许|\bnever\b|\balways\b|\bmust\b|\bdo not\b)/iu;
@@ -79,6 +83,7 @@ export function retiredMemoryIds(blocks: NormalizedBlock[]): Set<string> {
 
 const LINE = /^- \[(constraint|blocker|decision):([0-9a-f]{8})\] (.+)$/u;
 const SOURCE = /^  @source:([A-Za-z0-9_-]{1,80}) status:(confirmed|proposed)$/u;
+const FILE_LINE = /^  @file:([a-zA-Z0-9_./-]{1,36}) baseline:([0-9a-f]{8,40}) state:(tracked|needs-review|unknown)$/u;
 export function parseMemory(section: string): MemoryFact[] {
   const facts: MemoryFact[] = [];
   const seen = new Set<string>();
@@ -95,6 +100,16 @@ export function parseMemory(section: string): MemoryFact[] {
       const last = facts[facts.length - 1];
       last.sourceId = src[1];
       last.status = src[2] as "confirmed" | "proposed";
+    }
+    const fileMeta = FILE_LINE.exec(line);
+    if (fileMeta && facts.length) {
+      const last = facts[facts.length - 1];
+      if (!last.relatedFiles) last.relatedFiles = [];
+      if (last.relatedFiles.length < 2 && extractMemoryFiles(fileMeta[1]).includes(fileMeta[1])) {
+        last.relatedFiles.push(fileMeta[1]);
+        last.baselineCommit = fileMeta[2];
+        last.freshness = fileMeta[3] as FreshnessState;
+      }
     }
   }
   return facts;
@@ -116,15 +131,19 @@ export function formatMemory(facts: MemoryFact[], scores?: Record<string, number
   const selected = selectMemory(facts, scores);
   return selected.length ? HEADER + "\n" + selected.map(f =>
     `- [${f.kind}:${f.id}] ${f.text}` +
-    (f.sourceId ? `\n  @source:${f.sourceId} status:${f.status ?? "proposed"}` : "")
+    (f.sourceId ? `\n  @source:${f.sourceId} status:${f.status ?? "proposed"}` : "") +
+    (f.baselineCommit && f.relatedFiles?.length
+      ? f.relatedFiles.filter(p => p.length <= 36).map(path => `\n  @file:${path} baseline:${f.baselineCommit!.slice(0, 12)} state:${f.freshness ?? "unknown"}`).join("")
+      : "")
   ).join("\n") : "";
 }
 export function mergeMemory(
   prev: string, fresh: string, scores?: Record<string, number>,
   retired: Set<string> = new Set(), activeSourceIds?: Set<string>,
+  codeSnapshot?: CodeChangeSnapshot,
 ): string {
   const facts = [...parseMemory(prev), ...parseMemory(fresh)].filter(f =>
     !retired.has(f.id) && (!activeSourceIds || !f.sourceId || activeSourceIds.has(f.sourceId))
   );
-  return formatMemory(facts, scores);
+  return formatMemory(trackCodeMemory(facts, codeSnapshot), scores);
 }
