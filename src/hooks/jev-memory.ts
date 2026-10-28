@@ -5,20 +5,33 @@ import { collectMemory } from "../core/long-memory";
 import { jevMode, scoreMemoryDecisions } from "../core/jev-scorer";
 
 /** Each registered extension instance gets an isolated Jev score cache. */
-export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, number> {
+export function registerJevMemoryRanker(pi: ExtensionAPI, score: typeof scoreMemoryDecisions = scoreMemoryDecisions): () => Record<string, number> {
   let sessionFile: string | undefined;
   let cached: Record<string, number> = {};
   const tried = new Set<string>();
   let generation = 0;
-  const getScores = () => ({ ...cached });
+  let lastMode = jevMode();
+  const syncMode = () => {
+    const next = jevMode();
+    if (next !== lastMode) {
+      lastMode = next;
+      cached = {};
+      tried.clear();
+      generation++;
+    }
+    return next;
+  };
+  // Config changes take effect at compaction time even without agent_end.
+  const getScores = () => syncMode() === "active" ? { ...cached } : {};
   pi.on("session_start", () => {
     sessionFile = undefined;
     cached = {};
     tried.clear();
     generation++;
+    lastMode = jevMode();
   });
   pi.on("agent_end", async (_event, ctx) => {
-    const mode = jevMode();
+    const mode = syncMode();
     if (mode === "off") return;
     try {
       const current = ctx.sessionManager.getSessionFile() ?? undefined;
@@ -38,12 +51,15 @@ export function registerJevMemoryRanker(pi: ExtensionAPI): () => Record<string, 
       for (const fact of batch) tried.add(fact.id);
       if (!batch.length) return;
       const started = generation;
-      const scores = await scoreMemoryDecisions(batch, {
+      const scores = await score(batch, {
         apiKey: process.env.JEVMODEL_API_KEY ?? "",
         maxCandidates: 4,
         mode, log: true,
       });
-      if (started === generation) Object.assign(cached, scores);
+      // In-flight scoring may outlive a TUI switch or credential change.
+      if (started === generation && syncMode() === "active" && mode === "active") {
+        Object.assign(cached, scores);
+      }
     } catch {
       // Deterministic pi-vcc remains usable on all adapter errors.
     }
