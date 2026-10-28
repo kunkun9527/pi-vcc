@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readSessionEntries } from "./session-jsonl";
 import type { Message } from "@earendil-works/pi-ai";
 import { renderMessage, type RenderedEntry } from "./render-entries";
 
@@ -16,12 +16,7 @@ export const loadAllMessages = (
   /** Optional filter by global message index (for compaction-scoped searches) */
   entryFilter?: (globalIndex: number) => boolean,
 ): LoadedMessages => {
-  const content = readFileSync(sessionFile, "utf-8");
-  const entries: any[] = [];
-  for (const line of content.split("\n")) {
-    if (!line.trim()) continue;
-    try { entries.push(JSON.parse(line)); } catch {}
-  }
+  const entries = readSessionEntries(sessionFile);
   const rendered: RenderedEntry[] = [];
   const rawMessages: Message[] = [];
   const entryIds: string[] = [];
