@@ -16,10 +16,10 @@ describe("archived-first search", () => {
   it("identifies the archived prefix without treating live messages as archived", () => {
     expect([...archivedMessageIds(entries)!]).toEqual(["old"]);
     expect(archivedMessageIds(entries.filter(e=>e.type==="message"))).toBeUndefined();
-    const bad = [...entries];
+    const bad = entries.map(e => ({ ...e }));
     (bad[2] as any).firstKeptEntryId = "missing";
     expect(archivedMessageIds(bad)).toBeUndefined();
-    const allCompact = [...entries];
+    const allCompact = entries.map(e => ({ ...e }));
     (allCompact[2] as any).firstKeptEntryId = "";
     expect([...archivedMessageIds(allCompact)!]).toEqual(["old","live1"]);
   });
