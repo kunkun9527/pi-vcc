@@ -1,8 +1,9 @@
 import type { NormalizedBlock } from "../types";
-import { clip, firstLine } from "./content";
+import { clip, clipSentence, firstLine } from "./content";
 import { extractPath } from "./tool-args";
 import { collapseSkillText } from "./skill-collapse";
 import { KEY_STOPS, refineBreadcrumbKey } from "./causal-keys";
+import { safeTruncationBoundary } from "./cjk";
 
 const TRUNCATE_USER = 256;
 const TRUNCATE_ASSISTANT = 200;
@@ -41,7 +42,7 @@ const STOP_WORDS = new Set([
 // Replaces Intl.Segmenter which was ~2× slower with identical output.
 // Content words = consecutive letters (optionally followed by alphanumerics)
 // or digit sequences. Stopwords don't count toward the budget.
-const CONTENT_WORD_RE = /\p{L}[\p{L}\p{N}]*|\p{N}+/gu;
+const CONTENT_WORD_RE = /\p{Script=Han}|[A-Za-z][A-Za-z0-9]*|\p{L}[\p{L}\p{N}]*|\p{N}+/gu;
 
 const truncateTokens = (text: string, limit: number): string => {
   const flat = text.replace(/\s+/g, " ").trim();
@@ -60,7 +61,10 @@ const truncateTokens = (text: string, limit: number): string => {
     cutIdx = match.index + match[0].length;
   }
   if (count <= limit) return flat;
-  return flat.slice(0, cutIdx).trimEnd() + "...(truncated)";
+  // Prefer a complete Chinese sentence when it fits the existing budget.
+  const clipped = /\p{Script=Han}/u.test(flat.slice(0, cutIdx))
+    ? clipSentence(flat, cutIdx) : flat.slice(0, cutIdx);
+  return flat.slice(0, safeTruncationBoundary(flat, clipped.length)).trimEnd() + "...(truncated)";
 };
 
 // ── bash command compression ──

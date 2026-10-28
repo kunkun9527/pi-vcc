@@ -1,4 +1,5 @@
 import type { SectionData } from "../sections";
+import { displayWidth, wrapBoundary } from "./cjk";
 
 const section = (title: string, items?: string[]): string => {
   if (!items || items.length === 0) return "";
@@ -10,7 +11,7 @@ const BRIEF_MAX_LINES = 120;
 const TUI_SAFE_LINE_CHARS = 120;
 
 const wrapLine = (line: string, maxChars: number): string[] => {
-  if (line.length <= maxChars) return [line];
+  if (displayWidth(line) <= maxChars) return [line];
 
   const indent = line.match(/^\s*(?:[-*]\s+|\d+\.\s+)?/)?.[0] ?? "";
   const continuationIndent = indent ? " ".repeat(Math.min(indent.length, 8)) : "";
@@ -18,10 +19,9 @@ const wrapLine = (line: string, maxChars: number): string[] => {
   let remaining = line;
   let prefix = "";
 
-  while (prefix.length + remaining.length > maxChars) {
-    const available = Math.max(20, maxChars - prefix.length);
-    let splitAt = remaining.lastIndexOf(" ", available);
-    if (splitAt < Math.floor(available * 0.5)) splitAt = available;
+  while (displayWidth(prefix + remaining) > maxChars) {
+    const available = Math.max(1, maxChars - displayWidth(prefix));
+    const splitAt = wrapBoundary(remaining, available);
 
     wrapped.push(prefix + remaining.slice(0, splitAt).trimEnd());
     remaining = remaining.slice(splitAt).trimStart();
