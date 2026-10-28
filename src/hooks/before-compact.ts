@@ -295,6 +295,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, getMemoryScores: () 
     const messageRange = computeMessageRange(
       branchEntries as any[],
       firstKeptEntryId,
+      sourceEntryIds,
     );
 
     const compileInput: CompileInput = {
