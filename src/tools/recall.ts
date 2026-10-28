@@ -3,6 +3,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readSessionEntries } from "../core/session-jsonl";
 import { loadAllMessages } from "../core/load-messages";
 import { searchEntries, type SearchHit } from "../core/search-entries";
+import { archivedIdsFromManager, searchArchivedFirst } from "../core/recall-visibility";
 import { rerankRecallHits } from "../core/jev-recall";
 import { jevEnabled } from "../core/jev-scorer";
 import { formatRecallOutput } from "../core/format-recall";
@@ -171,9 +172,11 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         };
       }
 
-      const { rendered: msgs, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds, entryFilter);
+      const { rendered: msgs, rawMessages, entryIds } = loadAllMessages(sessionFile, false, lineageEntryIds, entryFilter);
       const lexical = params.query?.trim()
-        ? searchEntries(msgs, rawMessages, params.query)
+        ? rawScope === "lineage"
+          ? searchArchivedFirst(msgs, rawMessages, entryIds, params.query, archivedIdsFromManager(ctx.sessionManager))
+          : searchEntries(msgs, rawMessages, params.query)
         : msgs.slice(-DEFAULT_RECENT);
       const allResults = params.query?.trim() && jevEnabled()
         ? await rerankRecallHits(lexical, params.query, { apiKey: process.env.JEVMODEL_API_KEY ?? "" })
