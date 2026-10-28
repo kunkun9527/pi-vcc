@@ -2,6 +2,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { writeFileSync } from "fs";
 import { compile, type CompileInput } from "../core/summarize";
 import { estimateTextTokens } from "../core/cjk";
+import { auditMemoryCompaction } from "../core/memory-integrity";
+import { normalize } from "../core/normalize";
+import { filterNoise } from "../core/filter-noise";
+import { retiredMemoryIds } from "../core/long-memory";
 import { contextWindowLearner, planContextBudget } from "../core/context-budget";
 import { getJevMemoryScores } from "./jev-memory";
 import {
@@ -661,6 +665,22 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     };
 
     const summary = compile(compileInput);
+    const audit = auditMemoryCompaction(
+      preparation.previousSummary ?? "", summary,
+      retiredMemoryIds(filterNoise(normalize(messages))), activeSourceIds,
+    );
+    if (audit.missingProtected.length || audit.missingEvidence.length) {
+      // Never silently claim that critical history survived when it did not.
+      // The raw JSONL remains recoverable; warn without logging sensitive text.
+      try {
+        ctx?.ui?.notify?.(
+          "pi-vcc: compaction integrity warning (" +
+          (audit.missingProtected.length + audit.missingEvidence.length) +
+          " protected facts or source references changed). Use vcc_recall to verify.",
+          "warning",
+        );
+      } catch {}
+    }
 
     const branchIds = branchEntries.map((e: any) => e.id);
     const cutIdx = branchIds.indexOf(firstKeptEntryId);
