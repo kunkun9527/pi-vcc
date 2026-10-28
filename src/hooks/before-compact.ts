@@ -614,6 +614,19 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     const agentMessages = ownCut.messages;
     const firstKeptEntryId = ownCut.firstKeptEntryId;
     const messages = agentMessages;
+    // The cut uses original message object references, so map back to the
+    // exact session entry IDs without relying on branch-relative indices.
+    const entryIdByMessage = new Map<unknown, string>();
+    for (const entry of branchEntries as any[]) {
+      if (entry.type === "message" && entry.message && typeof entry.id === "string") {
+        entryIdByMessage.set(entry.message, entry.id);
+      }
+    }
+    const sourceEntryIds = messages.map((m: unknown) => entryIdByMessage.get(m) ?? "");
+    const activeSourceIds = new Set(
+      (branchEntries as any[]).filter(e => e.type === "message" && e.message && typeof e.id === "string")
+        .map(e => e.id as string),
+    );
 
     // Count kept messages and estimate tokens
     const keptIdx = (branchEntries as any[]).findIndex((e: any) => e.id === firstKeptEntryId);
@@ -641,6 +654,8 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
       messages,
       previousSummary: preparation.previousSummary,
       memoryScores: getJevMemoryScores(),
+      sourceEntryIds,
+      activeSourceIds,
       fileOps: {
         readFiles: [...preparation.fileOps.read],
         modifiedFiles: [...preparation.fileOps.written, ...preparation.fileOps.edited],
