@@ -120,6 +120,7 @@ const extractBreadcrumb = (line: string): string => {
   if (fileMatch1) return fileMatch1[1];
   // "Fix login bug → ..." → first few words before →
   const beforeArrow = text.split("\u2192")[0].trim();
+  if (/\p{Script=Han}/u.test(beforeArrow)) return refineBreadcrumbKey(beforeArrow);
   const words = beforeArrow.split(/\s+/).filter(w => w.length > 2).slice(0, 3);
   if (words.length > 0) return words.join(" ");
   // fallback: first content word

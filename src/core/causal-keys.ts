@@ -45,6 +45,17 @@ const KEY_MAX_WORDS = 3;
  * Takes up to KEY_MAX_WORDS content words (skipping stop words), joined with "-".
  */
 export const refineBreadcrumbKey = (fragment: string, maxChars = 40): string => {
+  if (/\p{Script=Han}/u.test(fragment)) {
+    const cleaned = fragment.trim()
+      .replace(/^(?:已经|目前|由于|因为|因此|所以|需要|我们|可以|应该|必须)/u, "")
+      .replace(/[。！？；，,:].*$/u, "")
+      .trim();
+    // Chinese phrases have no whitespace: keep a bounded readable prefix,
+    // not an entire sentence masquerading as one English "word".
+    const key = Array.from(cleaned).slice(0, Math.min(18, maxChars)).join("")
+      .replace(/[的了和与是把将]+$/u, "");
+    return key || Array.from(fragment).slice(0, Math.min(18, maxChars)).join("");
+  }
   const words = fragment.split(/\s+/);
   const content: string[] = [];
   for (const w of words) {

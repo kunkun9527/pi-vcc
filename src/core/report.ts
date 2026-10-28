@@ -1,7 +1,7 @@
 import type { Message } from "@earendil-works/pi-ai";
 import { buildSections } from "./build-sections";
 import { clip } from "./content";
-import { estimateTextTokens } from "./cjk";
+import { estimateTextTokens, searchTerms } from "./cjk";
 import { normalize } from "./normalize";
 import { renderMessage } from "./render-entries";
 import { searchEntries } from "./search-entries";
@@ -139,9 +139,7 @@ const briefLineCountOf = (summary: string): number => {
 };
 
 const queryTermsOf = (text: string): string[] =>
-  (text.match(/[\p{L}\p{N}_./-]{3,}/gu) ?? [])
-    .map((part) => part.trim())
-    .filter(Boolean);
+  searchTerms(text).filter(term => term.length >= 2);
 
 const queryOf = (text: string): string => {
   const terms = queryTermsOf(text);
