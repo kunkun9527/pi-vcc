@@ -64,4 +64,20 @@ describe("vcc_recall scope", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+  it("does not leak old messages when branch is empty", async () => {
+    const { dir, file } = makeSession();
+    try {
+      let tool: any;
+      registerRecallTool({ registerTool: (t: any) => { tool = t; } } as any);
+      const manager = { getSessionFile: () => file, getBranch: () => [], getEntries: () => [{ id: "m1" }, { id: "m2" }] };
+      const run = async (params: any) =>
+        (await tool.execute("tool-call", params, undefined, undefined, { sessionManager: manager })).content[0].text as string;
+      expect(await run({ query: "secret" })).toContain("No matches");
+      expect(await run({ evidenceId: "m2" })).toContain("not found");
+      expect(await run({ query: "secret", scope: "all" })).toContain("off lineage secret");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
 });

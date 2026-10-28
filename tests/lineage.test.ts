@@ -9,14 +9,14 @@ describe("getActiveLineageEntryIds", () => {
     expect([...ids]).toEqual(["a", "b", "c"]);
   });
 
-  it("falls back to getEntries when getBranch throws", () => {
+  it("fails closed when getBranch throws even if getEntries includes old branches", () => {
     const ids = getActiveLineageEntryIds({
       getBranch: () => {
         throw new Error("boom");
       },
       getEntries: () => [{ id: "x" }, { id: "y" }],
     });
-    expect([...ids]).toEqual(["x", "y"]);
+    expect([...ids]).toEqual([]);
   });
 
   it("returns empty set when both branch and entries are unavailable", () => {
@@ -30,4 +30,12 @@ describe("getActiveLineageEntryIds", () => {
     });
     expect(ids.size).toBe(0);
   });
+  it("returns an empty set when branch has no active entries", () => {
+    const ids = getActiveLineageEntryIds({
+      getBranch: () => [],
+      getEntries: () => [{ id: "off-branch-secret" }],
+    });
+    expect([...ids]).toEqual([]);
+  });
+
 });

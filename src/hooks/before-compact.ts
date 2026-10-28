@@ -53,33 +53,21 @@ const formatTokens = (n: number): string => {
  *
  * Returns [firstSummarizedEntryId, lastSummarizedEntryId] or undefined.
  */
-const computeMessageRange = (
+export const computeMessageRange = (
   branchEntries: any[],
   firstKeptEntryId: string,
 ): [string, string] | undefined => {
-  if (!firstKeptEntryId) return undefined;
-
-  // If compact-all sentinel, find the last message entry
-  if (firstKeptEntryId === "") {
-    let lastId: string | undefined;
-    for (const e of branchEntries) {
-      if (e.type === "message" && e.message && e.id) {
-        lastId = e.id;
-      }
-    }
-    return lastId ? [branchEntries.find((e: any) => e.type === "message" && e.message)?.id ?? "", lastId] as [string, string] : undefined;
-  }
-
-  // Find the first message entry (start of summarized range)
-  const firstMsgId = branchEntries.find(
-    (e: any) => e.type === "message" && e.message && e.id,
-  )?.id;
-  if (!firstMsgId) return undefined;
-
-  // If first kept entry IS the first message, nothing was summarized
-  if (firstMsgId === firstKeptEntryId) return undefined;
-
-  return [firstMsgId, firstKeptEntryId];
+  const messages = branchEntries.filter((e: any) =>
+    e.type === "message" && e.message && typeof e.id === "string",
+  );
+  if (messages.length === 0) return undefined;
+  // Empty string is a valid compact-all sentinel, not an absent range.
+  if (firstKeptEntryId === "") return [messages[0].id, messages[messages.length - 1].id];
+  const firstKeptIndex = messages.findIndex((e: any) => e.id === firstKeptEntryId);
+  // The stored range is inclusive. Never include the first KEPT message,
+  // which belongs to the live tail rather than the summarized history.
+  if (firstKeptIndex <= 0) return undefined;
+  return [messages[0].id, messages[firstKeptIndex - 1].id];
 };
 
 const dbg = (settings: PiVccSettings, data: Record<string, unknown>) => {
