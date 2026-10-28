@@ -8,6 +8,7 @@ import { requestJevScores, type JevScoreOptions } from "./jev-client";
 export type { JevScoreOptions } from "./jev-client";
 
 import { loadSettings } from "./settings";
+import { recordJevEvaluation } from "./jev-ledger";
 
 export type JevMode = "off" | "shadow" | "active";
 export const jevMode = (): JevMode => {
@@ -41,13 +42,24 @@ export async function scoreMemoryDecisions(
   const items = facts.filter(f => f.kind === "decision")
     .slice(-Math.max(0, Math.min(4, options.maxCandidates ?? 4)));
   if (!items.length) return scores;
+  if (options.mode === "off") return scores;
+  const started = Date.now();
   const values = await requestJevScores({
     name: "importance",
     state: { type: "historical project decision" },
     instructions: "How important is preserving this decision for the ongoing software project over many future compactions? Score consequences, not verbosity.",
     criteria: ["incidental", "minor", "relevant", "critical"],
   }, items.map(fact => redactMemoryForJev(fact.text)), options, 1800);
-  if (!values) return scores;
+  const changed = Boolean(values && values.some((score, i) =>
+    i > 0 && score !== values[i - 1],
+  ));
+  if (options.log) recordJevEvaluation({
+    operation: "memory", mode: options.mode === "shadow" ? "shadow" : "active",
+    source: values ? "judge" : "fallback", count: items.length,
+    changed, applied: Boolean(values) && options.mode !== "shadow",
+    latencyMs: Date.now() - started,
+  });
+  if (!values || options.mode === "shadow") return scores;
   items.forEach((fact, i) => { scores[fact.id] = values[i]; });
   return scores;
 }
