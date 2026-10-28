@@ -1,7 +1,7 @@
 {
   "name": "@monotykamary/pi-vcc",
   "version": "0.8.15",
-  "description": "Algorithmic conversation compactor for pi - transcript-preserving structured summaries, no LLM calls",
+  "description": "Deterministic Pi context compactor with Chinese support, evidence-backed memory, optional Jev ranking, and history recall",
   "main": "index.ts",
   "keywords": [
     "pi-package",
@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/monotykamary/pi-vcc.git"
+    "url": "git+https://github.com/kunkun9527/pi-vcc.git"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "*",
@@ -41,5 +41,9 @@
     "extensions": [
       "./index.ts"
     ]
+  },
+  "homepage": "https://github.com/kunkun9527/pi-vcc",
+  "bugs": {
+    "url": "https://github.com/kunkun9527/pi-vcc/issues"
   }
 }
