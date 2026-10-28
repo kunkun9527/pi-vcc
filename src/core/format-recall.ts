@@ -44,7 +44,7 @@ const groupSegments = (entries: SearchHit[], hasQuery: boolean): RecallSegment[]
 
   for (let i = 1; i < entries.length; i++) {
     const role = entries[i].role;
-    if (SEGMENT_START_ROLES.has(role)) {
+    if (SEGMENT_START_ROLES.has(role) || entries[i].index !== entries[i - 1].index + 1) {
       const slice = entries.slice(start, i);
       const matched = new Set<number>();
       for (let j = 0; j < slice.length; j++) {
@@ -142,7 +142,7 @@ export const formatRecallOutput = (
   // A range like #90-#12 would be false. Preserve ranked order and show
   // individually unless the entries are strictly contiguous in history.
   const chronological = entries.every((e, i) =>
-    i === 0 || e.index === entries[i - 1].index + 1,
+    i === 0 || e.index > entries[i - 1].index,
   );
   if (!chronological) {
     const title = headerOverride
