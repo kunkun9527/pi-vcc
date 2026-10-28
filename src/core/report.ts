@@ -1,6 +1,7 @@
 import type { Message } from "@earendil-works/pi-ai";
 import { buildSections } from "./build-sections";
 import { clip } from "./content";
+import { estimateTextTokens } from "./cjk";
 import { normalize } from "./normalize";
 import { renderMessage } from "./render-entries";
 import { searchEntries } from "./search-entries";
@@ -60,9 +61,6 @@ export interface CompactReport {
     probes: RecallProbe[];
   };
 }
-
-const estimateTokensFromChars = (chars: number): number =>
-  Math.ceil(chars / 4);
 
 const countRoles = (messages: Message[]): RoleCounts => {
   const counts: RoleCounts = { user: 0, assistant: 0, toolResult: 0 };
@@ -211,13 +209,13 @@ export const buildCompactReport = (input: CompileInput): CompactReport => {
       roleCounts: countRoles(input.messages),
       blockCounts: countBlocks(input.messages),
       inputChars,
-      estimatedTokens: estimateTokensFromChars(inputChars),
+      estimatedTokens: input.messages.reduce((n, msg, index) => n + estimateTextTokens(renderMessage(msg, index, true).summary), 0),
       topFiles,
       preview: previewOf(input.messages),
     },
     after: {
       summaryLength: summary.length,
-      estimatedTokens: estimateTokensFromChars(summary.length),
+      estimatedTokens: estimateTextTokens(summary),
       sectionCount: sectionCountOf(summary),
       summaryPreview: summary,
       goalsCount: data.sessionGoal.length,
