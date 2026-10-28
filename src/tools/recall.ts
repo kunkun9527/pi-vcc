@@ -1,6 +1,6 @@
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { readFileSync } from "fs";
+import { readSessionEntries } from "../core/session-jsonl";
 import { loadAllMessages } from "../core/load-messages";
 import { searchEntries, type SearchHit } from "../core/search-entries";
 import { rerankRecallHits } from "../core/jev-recall";
@@ -38,16 +38,7 @@ const resolveCompactionMessageRange = (
     : parseInt(scopeStr.replace("compaction:", ""), 10);
   if (isNaN(targetIndex) && !isLatest) return undefined;
 
-  const content = readFileSync(sessionFile, "utf-8");
-  const entries: any[] = [];
-  for (const line of content.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      entries.push(JSON.parse(line));
-    } catch {
-      /* skip malformed lines */
-    }
-  }
+  const entries = readSessionEntries(sessionFile);
 
   // Collect pi-vcc compaction entries in order
   const compactions = entries.filter(
