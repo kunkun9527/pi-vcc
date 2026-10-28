@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { writeFileSync } from "fs";
 import { compile, type CompileInput } from "../core/summarize";
 import { estimateTextTokens } from "../core/cjk";
+import { getJevMemoryScores } from "./jev-memory";
 import {
   CODEX_CONTEXT_OVERFLOW_COMPACT_INSTRUCTION,
   CODEX_OUTPUT_LIMIT_COMPACT_INSTRUCTION,
@@ -639,6 +640,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     const compileInput: CompileInput = {
       messages,
       previousSummary: preparation.previousSummary,
+      memoryScores: getJevMemoryScores(),
       fileOps: {
         readFiles: [...preparation.fileOps.read],
         modifiedFiles: [...preparation.fileOps.written, ...preparation.fileOps.edited],

@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { scaffoldSettings } from "./src/core/settings";
 import { registerBeforeCompactHook } from "./src/hooks/before-compact";
+import { registerJevMemoryRanker } from "./src/hooks/jev-memory";
 import { registerProactiveThresholdHook } from "./src/hooks/proactive-threshold";
 import { registerPiVccCommand } from "./src/commands/pi-vcc";
 import { registerVccRecallCommand } from "./src/commands/vcc-recall";
@@ -11,6 +12,7 @@ export default (pi: ExtensionAPI) => {
   scaffoldSettings();
   registerInvisibleContinue(pi);
   registerBeforeCompactHook(pi);
+  registerJevMemoryRanker(pi);
   registerProactiveThresholdHook(pi);
   registerPiVccCommand(pi);
   registerVccRecallCommand(pi);
