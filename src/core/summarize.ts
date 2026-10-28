@@ -157,7 +157,15 @@ const mergeHeaderSection = (header: string, prev: string, fresh: string, scores?
   const freshLines = fresh.split("\n").filter(isClean);
   const prevBreadcrumbs = prev.split("\n").filter(isRecallBreadcrumb);
   const freshBreadcrumbs = fresh.split("\n").filter(isRecallBreadcrumb);
-  const allBreadcrumbs = [...new Set([...prevBreadcrumbs, ...freshBreadcrumbs])];
+  // Bound recall breadcrumbs across indefinite compactions. Pin two early
+  // clues and retain recent clues; exact old text remains in session JSONL.
+  const MAX_BREADCRUMBS = 12;
+  const MAX_CRUMB_CHARS = 240;
+  const rawBreadcrumbs = [...new Set([...prevBreadcrumbs, ...freshBreadcrumbs])]
+    .map(line => line.slice(0, MAX_CRUMB_CHARS));
+  const allBreadcrumbs = rawBreadcrumbs.length > MAX_BREADCRUMBS
+    ? [...rawBreadcrumbs.slice(0, 2), ...rawBreadcrumbs.slice(-(MAX_BREADCRUMBS - 2))]
+    : rawBreadcrumbs;
   const contentLines = [...new Set([...prevLines.filter(l => !isRecallBreadcrumb(l)), ...freshLines.filter(l => !isRecallBreadcrumb(l))])];
   const CAP = header === "Session Goal" ? 8 : header === "Commits" ? 8 : header === "Earlier Turns" ? 15 : 15;
   if (contentLines.length > CAP) {
@@ -166,7 +174,13 @@ const mergeHeaderSection = (header: string, prev: string, fresh: string, scores?
     const crumbs = dropped.map(extractBreadcrumb).filter(Boolean);
     const headerLine = `[${header}]`;
     // Merge new crumbs with existing breadcrumbs (dedup by extracting terms)
-    const allCrumbs = crumbs.length > 0 ? [...allBreadcrumbs, `- ...recall: ${crumbs.join(", ")}`] : allBreadcrumbs;
+    const candidateCrumbs = crumbs.length > 0
+      ? [...allBreadcrumbs, `- ...recall: ${crumbs.join(", ")}`]
+      : allBreadcrumbs;
+    const bounded = candidateCrumbs.map(line => line.slice(0, MAX_CRUMB_CHARS));
+    const allCrumbs = bounded.length > MAX_BREADCRUMBS
+      ? [...bounded.slice(0, 2), ...bounded.slice(-(MAX_BREADCRUMBS - 2))]
+      : bounded;
     if (allCrumbs.length > 0) {
       return `${headerLine}\n${allCrumbs.join("\n")}\n${kept.join("\n")}`;
     }
@@ -219,7 +233,11 @@ const mergeFileLines = (prev: string, fresh: string): string => {
     if (arr.length <= limit) return arr.join(", ");
     const kept = arr.slice(0, limit);
     const omitted = arr.slice(limit);
-    return kept.join(", ") + `, +recall: ${omitted.join(", ")}`;
+    // Keep a bounded breadcrumb for older paths instead of growing
+    // this summary line indefinitely across compactions.
+    const clues = omitted.slice(0, 10).join(", ");
+    const extra = omitted.length > 10 ? ` (+${omitted.length - 10} other paths; use vcc_recall)` : "";
+    return kept.join(", ") + `, +recall: ${clues}${extra}`;
   };
 
   const lines: string[] = [];
