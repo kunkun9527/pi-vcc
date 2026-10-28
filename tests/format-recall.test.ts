@@ -84,4 +84,24 @@ describe("formatRecallOutput", () => {
       expect(r).toContain("> #1 [assistant] world");
     });
   });
+  it("does not fabricate message ranges from relevance-sorted hits", () => {
+    const entries: SearchHit[] = [
+      { index: 92, role: "user", summary: "most relevant", snippet: "most relevant" },
+      { index: 8, role: "user", summary: "second hit", snippet: "second hit" },
+      { index: 26, role: "assistant", summary: "third hit", snippet: "third hit" },
+    ];
+    const output = formatRecallOutput(entries, "matching");
+    expect(output.indexOf("#92")).toBeLessThan(output.indexOf("#8"));
+    expect(output.indexOf("#8")).toBeLessThan(output.indexOf("#26"));
+    expect(output).not.toContain("#92-#8");
+    expect(output).not.toContain("#8-#26");
+  });
+  it("does not claim sparse chronological hits form a contiguous segment", () => {
+    const output = formatRecallOutput([
+      { index: 4, role: "user", summary: "one", snippet: "one" },
+      { index: 12, role: "assistant", summary: "two", snippet: "two" },
+    ], "query");
+    expect(output).not.toContain("#4-#12");
+  });
+
 });
