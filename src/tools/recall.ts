@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readSessionEntries } from "../core/session-jsonl";
-import { loadAllMessages } from "../core/load-messages";
+import { loadAllMessages, loadSelectedMessages } from "../core/load-messages";
 import { searchEntries, type SearchHit } from "../core/search-entries";
 import { archivedIdsFromManager, searchArchivedFirst } from "../core/recall-visibility";
 import { rerankRecallHits } from "../core/jev-recall";
@@ -9,8 +9,6 @@ import { jevMode } from "../core/jev-scorer";
 import { formatRecallOutput } from "../core/format-recall";
 import { getActiveLineageEntryIds } from "../core/lineage";
 import { normalizeRecallScope } from "../core/recall-scope";
-import { renderMessage } from "../core/render-entries";
-import type { Message } from "@earendil-works/pi-ai";
 import type { PiVccCompactionDetails } from "../details";
 
 const DEFAULT_RECENT = 25;
@@ -140,7 +138,7 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
       // Permission/scope filtering happens before the ID lookup.
       if (params.evidenceId?.trim()) {
         const sourceId = params.evidenceId.trim();
-        const { rendered, entryIds } = loadAllMessages(sessionFile, true, lineageEntryIds, entryFilter);
+        const { rendered, entryIds } = loadSelectedMessages(sessionFile, { ids: new Set([sourceId]) }, lineageEntryIds, entryFilter);
         const index = entryIds.indexOf(sourceId);
         if (index < 0) return {
           content: [{ type: "text", text: "Evidence ID not found in the requested scope or active branch." }],
@@ -153,7 +151,7 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
       }
 
       if (hasExpand && !params.query) {
-        const { rendered: fullMsgs } = loadAllMessages(sessionFile, true, lineageEntryIds, entryFilter);
+        const { rendered: fullMsgs } = loadSelectedMessages(sessionFile, { indices: expandSet }, lineageEntryIds, entryFilter);
         const requested = [...expandSet];
         const byIndex = new Map(fullMsgs.map((m) => [m.index, m]));
         const invalid = invalidExpandIndices(requested, new Set(byIndex.keys()));
@@ -197,7 +195,7 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
           };
         }
         const start = (page - 1) * PAGE_SIZE;
-        const pageResults = allResults.slice(start, start + PAGE_SIZE) as SearchHit[];
+        const pageResults = allResults.slice(start, start + PAGE_SIZE).map(hit => ({ ...hit })) as SearchHit[];
         const header = totalPages > 1
           ? `Page ${page}/${totalPages} (${allResults.length} total matches${searchScopeLabel})`
           : `${allResults.length} matches${searchScopeLabel}`;
@@ -209,15 +207,13 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         // indices at full=true instead of re-reading the session file.
         const expanded: number[] = [];
         if (hasExpand) {
-          const msgByIndex = new Map<number, Message>();
-          for (let i = 0; i < msgs.length; i++) {
-            msgByIndex.set(msgs[i].index, rawMessages[i]);
-          }
+          const requested = new Set(pageResults.filter(hit => expandSet.has(hit.index)).map(hit => hit.index));
+          const fullMessages = loadSelectedMessages(sessionFile, { indices: requested }, lineageEntryIds, entryFilter);
+          const msgByIndex = new Map(fullMessages.rendered.map(item => [item.index, item]));
           for (const r of pageResults) {
             if (!expandSet.has(r.index)) continue;
-            const raw = msgByIndex.get(r.index);
-            if (!raw) continue;
-            const full = renderMessage(raw, r.index, true);
+            const full = msgByIndex.get(r.index);
+            if (!full) continue;
             // formatEntry prefers `snippet` for matched entries; set both
             // so the full content renders regardless of match state.
             r.snippet = full.summary;
