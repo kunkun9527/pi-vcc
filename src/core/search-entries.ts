@@ -93,8 +93,13 @@ const safeRegex = (pattern: string): RegExp => {
 };
 
 /** Detect if the query looks like a single regex pattern (contains regex metacharacters). */
-const looksLikeRegex = (query: string): boolean =>
-  /[|*+?{}()[\]\\^$.]/.test(query);
+const looksLikeRegex = (query: string): boolean => {
+  // In mixed Chinese search queries, '?' and '.' often are punctuation
+  // or file extensions (auth.ts), not an explicit regular expression.
+  // Keep alternation/classes/quantifiers working for intentional regexes.
+  if (/\p{Script=Han}/u.test(query) && !/[|*+{}()[\]\\^$]/.test(query)) return false;
+  return /[|*+?{}()[\]\\^$.]/.test(query);
+};
 
 // ── Precompiled term cache ──
 
