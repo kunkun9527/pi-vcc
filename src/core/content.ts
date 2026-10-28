@@ -22,7 +22,7 @@ export const clipSentence = (text: string, max = 200): string => {
   if (text.length <= max) return text;
   // Look for sentence terminators followed by space/newline within [max*0.5, max]
   const window = text.slice(0, max);
-  const matches = [...window.matchAll(/[.!?](?:\s|$)/g)];
+  const matches = [...window.matchAll(/(?:[。！？]|[.!?](?=\s|$))/g)];
   if (matches.length > 0) {
     const last = matches[matches.length - 1];
     const end = (last.index ?? 0) + 1; // include the punctuation
