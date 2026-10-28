@@ -12,10 +12,18 @@ import { estimateTextTokens } from "./cjk";
 export const computeMessageRange = (
   branchEntries: any[],
   firstKeptEntryId: string,
+  summarizedEntryIds?: string[],
 ): [string, string] | undefined => {
   const messages = branchEntries.filter((e: any) =>
     e.type === "message" && e.message && typeof e.id === "string",
   );
+  if (summarizedEntryIds) {
+    // On repeated compactions, branchEntries may still include messages
+    // already summarized by an earlier compaction. Use the exact current cut.
+    const available = new Set(messages.map((e: any) => e.id));
+    const current = summarizedEntryIds.filter(id => available.has(id));
+    return current.length > 0 ? [current[0], current[current.length - 1]] : undefined;
+  }
   if (messages.length === 0) return undefined;
   // Empty string is a valid compact-all sentinel, not an absent range.
   if (firstKeptEntryId === "") return [messages[0].id, messages[messages.length - 1].id];
