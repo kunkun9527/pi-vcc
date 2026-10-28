@@ -3,6 +3,7 @@ import { clip, clipSentence, firstLine } from "./content";
 import { extractPath } from "./tool-args";
 import { collapseSkillText } from "./skill-collapse";
 import { KEY_STOPS, refineBreadcrumbKey } from "./causal-keys";
+import { safeTruncationBoundary } from "./cjk";
 
 const TRUNCATE_USER = 256;
 const TRUNCATE_ASSISTANT = 200;
@@ -63,7 +64,7 @@ const truncateTokens = (text: string, limit: number): string => {
   // Prefer a complete Chinese sentence when it fits the existing budget.
   const clipped = /\p{Script=Han}/u.test(flat.slice(0, cutIdx))
     ? clipSentence(flat, cutIdx) : flat.slice(0, cutIdx);
-  return clipped.trimEnd() + "...(truncated)";
+  return flat.slice(0, safeTruncationBoundary(flat, clipped.length)).trimEnd() + "...(truncated)";
 };
 
 // ── bash command compression ──

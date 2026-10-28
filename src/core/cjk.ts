@@ -4,7 +4,10 @@
  */
 const HAN = /\p{Script=Han}/u;
 const HAN_RUNS = /\p{Script=Han}+|[^\p{Script=Han}\s]+/gu;
-const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+// Approximate full-width East Asian cells and emoji (not a terminal renderer).
+const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff01-\uff60\ufe10-\ufe1f\p{Extended_Pictographic}]/u;
+const MARK = /[\p{Mark}\u200d\ufe0e\ufe0f]/u;
+const cellWidth = (char: string): number => MARK.test(char) ? 0 : WIDE.test(char) ? 2 : 1;
 
 /** Expand contiguous Han text to bigrams; retain literal Latin/file terms.
  * Substring matches are lexical, not semantic or synonym-aware.
@@ -48,7 +51,7 @@ export function estimateTextTokens(text: string): number {
 /** Approximate terminal-cell width: CJK letters occupy two cells. */
 export function displayWidth(text: string): number {
   let width = 0;
-  for (const char of text) width += WIDE.test(char) ? 2 : 1;
+  for (const char of text) width += cellWidth(char);
   return width;
 }
 
@@ -58,7 +61,7 @@ export function wrapBoundary(text: string, budget: number): number {
   let end = 0;
   let boundary = 0;
   for (const char of text) {
-    const next = width + (WIDE.test(char) ? 2 : 1);
+    const next = width + cellWidth(char);
     if (next > budget) break;
     width = next;
     end += char.length;
@@ -66,4 +69,34 @@ export function wrapBoundary(text: string, budget: number): number {
   }
   if (end === 0 && text.length > 0) return Array.from(text)[0].length;
   return boundary >= end * 0.55 ? boundary : end;
+}
+
+/** Never cut inside Markdown code, links, URLs or file paths. */
+export function safeTruncationBoundary(text: string, proposed: number): number {
+  let cut = Math.max(0, Math.min(proposed, text.length));
+  if (cut > 0 && cut < text.length) {
+    const prev = text.charCodeAt(cut - 1);
+    if (prev >= 0xd800 && prev <= 0xdbff) cut--;
+  }
+  const spans = [
+    /```[\s\S]*?```/g,
+    /`[^`\n]*`/g,
+    /\[[^\]\n]+\]\([^\)\n]+\)/g,
+    /https?:\/\/[^\s<>"'`]+/g,
+    /(?:^|[\s(])(?:\.{1,2}\/|\/)[^\s`"'<>]+/gm,
+  ];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const regex of spans) {
+      for (const match of text.matchAll(regex)) {
+        if (match.index < cut && cut < match.index + match[0].length) {
+          cut = match.index;
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  return cut;
 }
