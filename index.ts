@@ -5,6 +5,7 @@ import { registerJevMemoryRanker } from "./src/hooks/jev-memory";
 import { registerProactiveThresholdHook } from "./src/hooks/proactive-threshold";
 import { registerPiVccCommand } from "./src/commands/pi-vcc";
 import { registerVccRecallCommand } from "./src/commands/vcc-recall";
+import { registerConfigPanel } from "./src/commands/pi-vcc-config";
 import { registerRecallTool } from "./src/tools/recall";
 import { registerInvisibleContinue } from "./src/core/invisible-continue";
 
@@ -15,6 +16,7 @@ export default (pi: ExtensionAPI) => {
   registerBeforeCompactHook(pi, getMemoryScores);
   registerProactiveThresholdHook(pi);
   registerPiVccCommand(pi);
+  registerConfigPanel(pi);
   registerVccRecallCommand(pi);
   registerRecallTool(pi);
 };
