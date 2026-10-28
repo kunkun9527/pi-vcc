@@ -5,11 +5,14 @@ import { filterNoise } from "./filter-noise";
 import { buildSections } from "./build-sections";
 import { formatSummary, capBrief, wrapLongLines } from "./format";
 import { refineBreadcrumbKey } from "./causal-keys";
+import { collectMemory, formatMemory, mergeMemory, resolvedMemoryIds } from "./long-memory";
 
 export interface CompileInput {
   messages: Message[];
   previousSummary?: string;
   fileOps?: FileOps;
+  /** Optional advisory scores, never override protected memory categories. */
+  memoryScores?: Record<string, number>;
 }
 
 // Cache-friendly order: stable sections first, volatile sections last
@@ -21,6 +24,7 @@ const HEADER_NAMES = [
   "Type Catalog",
   "Outstanding Context",
   "Earlier Turns",
+  "Long-term Memory",
 ];
 
 const SEPARATOR = "\n\n---\n\n";
@@ -129,7 +133,8 @@ const extractBreadcrumb = (line: string): string => {
 };
 
 /** Merge a header section */
-const mergeHeaderSection = (header: string, prev: string, fresh: string): string => {
+const mergeHeaderSection = (header: string, prev: string, fresh: string, scores?: Record<string, number>, resolved?: Set<string>): string => {
+  if (header === "Long-term Memory") return mergeMemory(prev, fresh, scores, resolved);
   // Outstanding Context, Type Catalog are volatile -- always use fresh only
   if (header === "Outstanding Context" || header === "Type Catalog") return fresh;
   if (!prev && !fresh) return "";
@@ -227,13 +232,13 @@ const mergeBriefTranscript = (prev: string, fresh: string): string => {
   return prev + "\n\n" + fresh;
 };
 
-const mergePrevious = (prev: string, fresh: string): string => {
+const mergePrevious = (prev: string, fresh: string, scores?: Record<string, number>, resolved?: Set<string>): string => {
   // Merge header sections
   const headers = HEADER_NAMES
     .map((header) => {
       const freshSec = sectionOf(fresh, header);
       const prevSec = sectionOf(prev, header);
-      return mergeHeaderSection(header, prevSec, freshSec);
+      return mergeHeaderSection(header, prevSec, freshSec, scores, resolved);
     })
     .filter(Boolean);
 
@@ -256,13 +261,20 @@ const mergePrevious = (prev: string, fresh: string): string => {
 export const compile = (input: CompileInput): string => {
   const blocks = filterNoise(normalize(input.messages));
   const data = buildSections({ blocks });
-  const fresh = formatSummary(data);
+  const formatted = formatSummary(data);
+  const memory = formatMemory(collectMemory(blocks), input.memoryScores);
+  const separatorAt = formatted.indexOf(SEPARATOR);
+  const fresh = memory
+    ? separatorAt >= 0
+      ? formatted.slice(0, separatorAt) + "\n\n" + memory + formatted.slice(separatorAt)
+      : formatted + "\n\n" + memory
+    : formatted;
   // Strip any legacy RECALL_NOTE baked into prev summary (pre-fix format)
   // so merge doesn't re-stack it inside the brief.
   const prev = input.previousSummary
     ? stripRecallNote(input.previousSummary)
     : undefined;
-  const merged = prev ? mergePrevious(prev, fresh) : fresh;
+  const merged = prev ? mergePrevious(prev, fresh, input.memoryScores, resolvedMemoryIds(blocks)) : fresh;
   if (!merged) return "";
   const body = merged;
   return wrapLongLines(HANDFOFF_PREAMBLE + "\n\n" + body);
