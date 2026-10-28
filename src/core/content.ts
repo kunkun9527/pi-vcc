@@ -1,4 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
+import { safeTruncationBoundary } from "./cjk";
 
 export const clip = (text: string, max = 200): string => {
   if (text.length <= max) return text;
@@ -26,9 +27,9 @@ export const clipSentence = (text: string, max = 200): string => {
   if (matches.length > 0) {
     const last = matches[matches.length - 1];
     const end = (last.index ?? 0) + 1; // include the punctuation
-    if (end >= max * 0.5) return text.slice(0, end);
+    if (end >= max * 0.5) return text.slice(0, safeTruncationBoundary(text, end));
   }
-  return clip(text, max);
+  return text.slice(0, safeTruncationBoundary(text, clip(text, max).length));
 };
 
 export const nonEmptyLines = (text: string): string[] =>
