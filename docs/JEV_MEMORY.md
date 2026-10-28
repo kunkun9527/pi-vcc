@@ -31,6 +31,17 @@ Network errors cannot prevent `/compact` or `/pi-vcc` from completing.
 There are no retries inside the active session. No key or raw request text
 is included in diagnostic logs.
 
+## Optional Jev recall reranking
+
+When the same Jev opt-in is enabled, both the `/pi-vcc-recall` command and
+`vcc_recall` tool rerank at most the first four **lexically matched** results.
+This does not create semantic search hits or change the underlying session
+history. The query and each short rendered candidate are redacted using the
+same best-effort rules; only truncated text is sent externally.
+
+If *any* API call fails, all hits retain their original lexical order.
+No API call happens for zero or one result, or without both opt-in and key.
+
 ## Closing resolved issues
 
 The `[Long-term Memory]` section lists IDs:
