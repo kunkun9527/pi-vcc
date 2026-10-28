@@ -7,8 +7,15 @@ import type { MemoryFact } from "./long-memory";
 import { requestJevScore, type JevScoreOptions } from "./jev-client";
 export type { JevScoreOptions } from "./jev-client";
 
-export const jevEnabled = (): boolean =>
-  process.env.PI_VCC_JEV_ENABLED === "1" && Boolean(process.env.JEVMODEL_API_KEY);
+import { loadSettings } from "./settings";
+
+export const jevEnabled = (): boolean => {
+  if (!process.env.JEVMODEL_API_KEY) return false;
+  // Environment variable has precedence to preserve existing deployments.
+  if (process.env.PI_VCC_JEV_ENABLED === "1") return true;
+  if (process.env.PI_VCC_JEV_ENABLED === "0") return false;
+  return loadSettings().jevEnabled === true;
+};
 
 export function redactMemoryForJev(text: string): string {
   return text
