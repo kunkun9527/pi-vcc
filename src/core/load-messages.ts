@@ -5,6 +5,8 @@ import { renderMessage, type RenderedEntry } from "./render-entries";
 interface LoadedMessages {
   rendered: RenderedEntry[];
   rawMessages: Message[];
+  /** Stable Pi session entry IDs aligned with rendered/rawMessages. */
+  entryIds: string[];
 }
 
 export const loadAllMessages = (
@@ -22,6 +24,7 @@ export const loadAllMessages = (
   }
   const rendered: RenderedEntry[] = [];
   const rawMessages: Message[] = [];
+  const entryIds: string[] = [];
   let messageIndex = 0;
   for (const e of entries) {
     const isMessage = e.type === "message" && e.message;
@@ -32,9 +35,10 @@ export const loadAllMessages = (
     if (allowed) {
       rendered.push(renderMessage(e.message, messageIndex, full));
       rawMessages.push(e.message);
+      entryIds.push(typeof e.id === "string" ? e.id : "");
     }
     messageIndex++;
   }
 
-  return { rendered, rawMessages };
+  return { rendered, rawMessages, entryIds };
 };
