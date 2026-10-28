@@ -17,6 +17,7 @@ export function searchTerms(query: string): string[] {
   for (const match of query.matchAll(HAN_RUNS)) {
     // Question prefixes are not content terms; keep code identifiers literal.
     const part = match[0].replace(/^(?:请帮我|请帮忙|请问|帮我|如何|怎么|为什么|有没有|请)/u, "");
+    if (!part) continue;
     if (!HAN.test(part)) {
       for (const term of part.match(/[\p{L}\p{N}_./-]+/gu) ?? []) terms.push(term);
       continue;
