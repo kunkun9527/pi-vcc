@@ -4,6 +4,8 @@ import {
   CODEX_OUTPUT_LIMIT_COMPACT_INSTRUCTION,
   isCodexContextOverflowError,
   isCodexOutputLimitError,
+  markCodexContextOverflowPending as legacyMarkOverflow,
+  clearCodexContextOverflowPending as legacyClearOverflow,
 } from "../core/codex-output-limit";
 import { loadSettings, getModelThreshold, isPiCoreCompactionEnabled, resolveTriggerTokens } from "../core/settings";
 import { ProactiveState } from "../core/proactive-state";
@@ -26,7 +28,7 @@ const formatTokens = (n: number): string => {
 // use an explicit instance instead of sharing module-level trigger state.
 let legacyState: ProactiveState | undefined;
 export const isProactiveTriggerActive = () => legacyState?.isTriggered() ?? false;
-export const resetProactiveState = () => { legacyState?.reset(); };
+export const resetProactiveState = () => { legacyState?.reset(); legacyClearOverflow(); };
 
 /**
  * Check if a configured threshold has been crossed and trigger compaction
@@ -146,7 +148,9 @@ const lastAssistantMessage = (event: unknown): unknown => {
  * cancel the compaction we ourselves requested — producing confusing
  * "Compacting..." then "Skipped compaction" notifications.
  */
-export const registerProactiveThresholdHook = (pi: ExtensionAPI, state = new ProactiveState()): ProactiveState => {
+export const registerProactiveThresholdHook = (pi: ExtensionAPI, providedState?: ProactiveState): ProactiveState => {
+  const state = providedState ?? new ProactiveState();
+  const legacy = providedState === undefined;
   legacyState = state;
   // Codex reports output-limit responses as errors instead of the standard
   // "length" stop reason. Those errors have no usable context usage, so
@@ -161,6 +165,7 @@ export const registerProactiveThresholdHook = (pi: ExtensionAPI, state = new Pro
     }
     if (isCodexContextOverflowError(lastMessage)) {
       state.markOverflow();
+      if (legacy) legacyMarkOverflow();
       // pi-core's overflow compaction only fires when compaction is enabled AND
       // the assistant message carries the current model identity. If either
       // is missing pi-core bails (or its LLM compaction would re-overflow), so
@@ -187,11 +192,13 @@ export const registerProactiveThresholdHook = (pi: ExtensionAPI, state = new Pro
   // Track compaction completion: set cooldown and clear self-initiated flag
   pi.on("session_compact", () => {
     state.complete();
+    if (legacy) legacyClearOverflow();
   });
 
   // Reset state on session start so state doesn't leak between sessions
   pi.on("session_start", () => {
     state.reset();
+    if (legacy) legacyClearOverflow();
   });
   return state;
 };
