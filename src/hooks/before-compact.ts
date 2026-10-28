@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { writeFileSync } from "fs";
 import { compile, type CompileInput } from "../core/summarize";
 import { estimateTextTokens } from "../core/cjk";
+import { contextWindowLearner, planContextBudget } from "../core/context-budget";
 import { getJevMemoryScores } from "./jev-memory";
 import {
   CODEX_CONTEXT_OVERFLOW_COMPACT_INSTRUCTION,
@@ -537,14 +538,11 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     // maxTokens, the compaction-retry request can be rejected upfront
     // (input + maxTokens > contextWindow) and re-overflow. Falls back to
     // pi-core's keepRecentTokens when the window is unknown.
-    const contextWindow = (ctx as any)?.model?.contextWindow ?? 0;
-    const maxTokens = (ctx as any)?.model?.maxTokens ?? 0;
-    const keepRecentTokens = (preparation as any)?.settings?.keepRecentTokens ?? 20000;
-    const overhead = contextWindow > 0 ? Math.min(32768, Math.floor(contextWindow * 0.2)) : 32768;
-    const outputReserve = maxTokens > 0 ? maxTokens : Math.floor(contextWindow * 0.5);
-    const maxKeptTokens = contextWindow > 0
-      ? Math.max(2048, contextWindow - outputReserve - overhead)
-      : keepRecentTokens;
+    const model = (ctx as any)?.model;
+    const sessionId = (ctx as any)?.sessionManager?.getSessionId?.() ?? "";
+    const learnedWindow = model ? contextWindowLearner.get(sessionId, model) : undefined;
+    const budget = planContextBudget(model, (preparation as any)?.settings?.keepRecentTokens ?? 20000, learnedWindow);
+    const maxKeptTokens = budget.maxKeptTokens;
     const ownCut = buildOwnCut(branchEntries as any[], { maxKeptTokens });
     if (!ownCut.ok) {
       const lastComp = [...branchEntries].reverse().find((e: any) => e.type === "compaction");
@@ -732,6 +730,22 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
 
   pi.on("session_start", () => {
     hasNotifiedFabricDeferral = false;
+  });
+
+  // A provider error can reveal a smaller real context window than the
+  // model registry advertises. Learn it only for this session + model.
+  // Never retry the same overflowing request inside message_end.
+  pi.on("message_end", (event, ctx) => {
+    const msg = (event as any)?.message;
+    if (msg?.role !== "assistant" || msg?.stopReason !== "error") return;
+    const detail = typeof msg.errorMessage === "string" ? msg.errorMessage : "";
+    const sessionId = (ctx as any)?.sessionManager?.getSessionId?.();
+    const model = (ctx as any)?.model;
+    if (sessionId && model && detail) contextWindowLearner.observe(sessionId, model, detail);
+  });
+  pi.on("session_shutdown", (_event, ctx) => {
+    const sessionId = (ctx as any)?.sessionManager?.getSessionId?.();
+    if (sessionId) contextWindowLearner.forget(sessionId);
   });
 
   // After compaction completes, check if the agent loop stalled and needs
