@@ -15,7 +15,7 @@ export JEVMODEL_API_KEY="your-api-key"
 No API key or unset opt-in means **zero network requests**. With opt-in,
 pi-vcc scores up to four decision candidates at completed `agent_end` turns,
 not during compaction. The scoring API is `POST https://jevmodel.org/v1/systemone`,
-using the `jev-latest` model and one `score` question per candidate.
+using the `jev-latest` model and **one batch request** containing independent score questions per candidate.
 Decisions are ranked by score, then recency. Explicit constraints and
 unresolved blockers are never pruned based on model scores.
 
@@ -25,7 +25,7 @@ key patterns, URLs, and absolute home paths are redacted best-effort.
 This is not a complete personal-information or secrets detector.
 Do not enable it for sensitive transcripts without review and consent.
 
-If Jev times out (1.8 seconds per candidate), returns an invalid response,
+If Jev times out (1.8 seconds per batch), returns an invalid response,
 or has no credits, scoring stops and deterministic ranking remains in effect.
 Network errors cannot prevent `/compact` or `/pi-vcc` from completing.
 There are no retries inside the active session. No key or raw request text
@@ -39,7 +39,7 @@ This does not create semantic search hits or change the underlying session
 history. The query and each short rendered candidate are redacted using the
 same best-effort rules; only truncated text is sent externally.
 
-If *any* API call fails, all hits retain their original lexical order.
+If a batch fails or even one response is missing/low-confidence, all hits retain their original lexical order. Batches are limited to five candidates, with a bounded payload.
 No API call happens for zero or one result, or without both opt-in and key.
 
 ## Closing resolved issues
