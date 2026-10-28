@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadAllMessages } from "../core/load-messages";
 import { searchEntries } from "../core/search-entries";
+import { archivedIdsFromManager, searchArchivedFirst } from "../core/recall-visibility";
 import { rerankRecallHits } from "../core/jev-recall";
 import { jevEnabled } from "../core/jev-scorer";
 import { formatRecallOutput } from "../core/format-recall";
@@ -47,8 +48,10 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
         return;
       }
 
-      const { rendered, rawMessages } = loadAllMessages(sessionFile, false, lineageEntryIds);
-      const lexical = searchEntries(rendered, rawMessages, query);
+      const { rendered, rawMessages, entryIds } = loadAllMessages(sessionFile, false, lineageEntryIds);
+      const lexical = parsed.scope === "lineage"
+        ? searchArchivedFirst(rendered, rawMessages, entryIds, query, archivedIdsFromManager(ctx.sessionManager))
+        : searchEntries(rendered, rawMessages, query);
       const allResults = jevEnabled()
         ? await rerankRecallHits(lexical, query, { apiKey: process.env.JEVMODEL_API_KEY ?? "" })
         : lexical;
