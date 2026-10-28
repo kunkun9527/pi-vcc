@@ -87,30 +87,48 @@ const FILE_LINE = /^  @file:([a-zA-Z0-9_./-]{1,36}) baseline:([0-9a-f]{8,40}) st
 export function parseMemory(section: string): MemoryFact[] {
   const facts: MemoryFact[] = [];
   const seen = new Set<string>();
+  // Metadata belongs only to the immediately preceding *valid* fact.
+  // Never attach an invalid, duplicate, or foreign record's provenance
+  // to an earlier valid fact.
+  let current: MemoryFact | undefined;
   for (const line of section.split("\n")) {
     const m = LINE.exec(line);
     if (m) {
       const kind = m[1] as FactKind, id = m[2], text = m[3];
-      if (memoryId(kind, text) !== id || seen.has(id)) continue;
-      seen.add(id); facts.push({ kind, id, text });
+      if (memoryId(kind, text) !== id || seen.has(id)) {
+        current = undefined;
+        continue;
+      }
+      const fact: MemoryFact = { kind, id, text };
+      seen.add(id); facts.push(fact);
+      current = fact;
+      continue;
+    }
+    // Even an invalid memory line must end the previous record.
+    if (/^- \[(?:constraint|blocker|decision):/u.test(line)) {
+      current = undefined;
       continue;
     }
     const src = SOURCE.exec(line);
-    if (src && facts.length) {
-      const last = facts[facts.length - 1];
-      last.sourceId = src[1];
-      last.status = src[2] as "confirmed" | "proposed";
+    if (src && current) {
+      if (!current.sourceId) {
+        current.sourceId = src[1];
+        current.status = src[2] as "confirmed" | "proposed";
+      }
+      continue;
     }
     const fileMeta = FILE_LINE.exec(line);
-    if (fileMeta && facts.length) {
-      const last = facts[facts.length - 1];
-      if (!last.relatedFiles) last.relatedFiles = [];
-      if (last.relatedFiles.length < 2 && extractMemoryFiles(fileMeta[1]).includes(fileMeta[1])) {
-        last.relatedFiles.push(fileMeta[1]);
-        last.baselineCommit = fileMeta[2];
-        last.freshness = fileMeta[3] as FreshnessState;
+    if (fileMeta && current) {
+      if (!current.relatedFiles) current.relatedFiles = [];
+      if (current.relatedFiles.length < 2 && extractMemoryFiles(fileMeta[1]).includes(fileMeta[1])) {
+        current.relatedFiles.push(fileMeta[1]);
+        current.baselineCommit = fileMeta[2];
+        current.freshness = fileMeta[3] as FreshnessState;
       }
+      continue;
     }
+    // Headers, other sections, malformed metadata and text break adjacency.
+    current = undefined;
   }
   return facts;
 }
