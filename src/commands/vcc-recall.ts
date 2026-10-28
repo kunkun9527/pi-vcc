@@ -3,7 +3,7 @@ import { loadAllMessages } from "../core/load-messages";
 import { searchEntries } from "../core/search-entries";
 import { archivedIdsFromManager, searchArchivedFirst } from "../core/recall-visibility";
 import { rerankRecallHits } from "../core/jev-recall";
-import { jevEnabled } from "../core/jev-scorer";
+import { jevMode } from "../core/jev-scorer";
 import { formatRecallOutput } from "../core/format-recall";
 import { getActiveLineageEntryIds } from "../core/lineage";
 import { parseRecallScope } from "../core/recall-scope";
@@ -52,8 +52,9 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
       const lexical = parsed.scope === "lineage"
         ? searchArchivedFirst(rendered, rawMessages, entryIds, query, archivedIdsFromManager(ctx.sessionManager))
         : searchEntries(rendered, rawMessages, query);
-      const allResults = jevEnabled()
-        ? await rerankRecallHits(lexical, query, { apiKey: process.env.JEVMODEL_API_KEY ?? "" })
+      const mode = jevMode();
+      const allResults = mode !== "off"
+        ? await rerankRecallHits(lexical, query, { apiKey: process.env.JEVMODEL_API_KEY ?? "", mode, log: true })
         : lexical;
 
       const start = (page - 1) * PAGE_SIZE;
